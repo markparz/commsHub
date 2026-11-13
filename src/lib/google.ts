@@ -54,39 +54,51 @@ export async function listGmailMessages(max = 20): Promise<GmailMessage[]> {
   if (!auth) throw new Error("Google not connected");
 
   const gmail = google.gmail({ version: "v1", auth });
-  const list = await gmail.users.messages.list({
+  // One row per conversation — list threads, not individual messages
+  const list = await gmail.users.threads.list({
     userId: "me",
     maxResults: max,
     q: "in:inbox category:primary",
   });
 
-  const ids = list.data.messages || [];
+  const threads = list.data.threads || [];
   const messages: GmailMessage[] = [];
 
-  for (const item of ids) {
+  for (const item of threads) {
     if (!item.id) continue;
-    const full = await gmail.users.messages.get({
+    const thread = await gmail.users.threads.get({
       userId: "me",
       id: item.id,
       format: "metadata",
       metadataHeaders: ["From", "To", "Cc", "Subject", "Date", "Message-ID"],
     });
-    const labels = full.data.labelIds || [];
-    // Keep Primary-tab mail only (exclude Social/Promotions/Updates/Forums)
-    if (!labels.includes("CATEGORY_PERSONAL")) continue;
 
-    const headers = full.data.payload?.headers;
+    const threadMessages = thread.data.messages || [];
+    if (threadMessages.length === 0) continue;
+
+    const latest = threadMessages[threadMessages.length - 1];
+    const labels = latest.labelIds || [];
+    const threadUnread = threadMessages.some((m) =>
+      (m.labelIds || []).includes("UNREAD"),
+    );
+    // Keep Primary-tab mail only (exclude Social/Promotions/Updates/Forums)
+    const isPrimary = threadMessages.some((m) =>
+      (m.labelIds || []).includes("CATEGORY_PERSONAL"),
+    );
+    if (!isPrimary) continue;
+
+    const headers = latest.payload?.headers;
     const cc = headerValue(headers, "Cc");
     messages.push({
-      id: item.id,
-      threadId: full.data.threadId || item.id,
+      id: latest.id || item.id,
+      threadId: item.id,
       from: headerValue(headers, "From"),
       to: headerValue(headers, "To"),
       cc: cc || undefined,
       subject: headerValue(headers, "Subject") || "(no subject)",
-      snippet: full.data.snippet || "",
+      snippet: latest.snippet || thread.data.snippet || "",
       date: headerValue(headers, "Date") || new Date().toISOString(),
-      unread: labels.includes("UNREAD"),
+      unread: threadUnread || labels.includes("UNREAD"),
       messageId: headerValue(headers, "Message-ID") || undefined,
     });
   }
@@ -102,11 +114,19 @@ function encodeRawMessage(lines: string[]) {
     .replace(/=+$/, "");
 }
 
-export async function archiveGmailMessage(id: string) {
+export async function archiveGmailMessage(id: string, threadId?: string) {
   const auth = await getAuthedGoogleClient();
   if (!auth) throw new Error("Google not connected");
 
   const gmail = google.gmail({ version: "v1", auth });
+  if (threadId) {
+    await gmail.users.threads.modify({
+      userId: "me",
+      id: threadId,
+      requestBody: { removeLabelIds: ["INBOX"] },
+    });
+    return;
+  }
   await gmail.users.messages.modify({
     userId: "me",
     id,
@@ -114,11 +134,15 @@ export async function archiveGmailMessage(id: string) {
   });
 }
 
-export async function deleteGmailMessage(id: string) {
+export async function deleteGmailMessage(id: string, threadId?: string) {
   const auth = await getAuthedGoogleClient();
   if (!auth) throw new Error("Google not connected");
 
   const gmail = google.gmail({ version: "v1", auth });
+  if (threadId) {
+    await gmail.users.threads.trash({ userId: "me", id: threadId });
+    return;
+  }
   await gmail.users.messages.trash({ userId: "me", id });
 }
 

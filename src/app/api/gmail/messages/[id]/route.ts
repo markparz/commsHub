@@ -8,7 +8,11 @@ type Params = { params: Promise<{ id: string }> };
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const { action } = await req.json();
+    const body = await req.json();
+    const { action, threadId } = body as {
+      action?: string;
+      threadId?: string;
+    };
 
     if (action !== "archive" && action !== "delete") {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
@@ -16,7 +20,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (isDemoMode()) {
       const ok =
-        action === "archive" ? archiveDemoGmail(id) : deleteDemoGmail(id);
+        action === "archive"
+          ? archiveDemoGmail(id, threadId)
+          : deleteDemoGmail(id, threadId);
       if (!ok) {
         return NextResponse.json({ error: "Message not found" }, { status: 404 });
       }
@@ -24,9 +30,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (action === "archive") {
-      await archiveGmailMessage(id);
+      await archiveGmailMessage(id, threadId);
     } else {
-      await deleteGmailMessage(id);
+      await deleteGmailMessage(id, threadId);
     }
     return NextResponse.json({ ok: true, action });
   } catch (err) {
@@ -35,17 +41,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    const threadId = req.nextUrl.searchParams.get("threadId") || undefined;
     if (isDemoMode()) {
-      const ok = deleteDemoGmail(id);
+      const ok = deleteDemoGmail(id, threadId);
       if (!ok) {
         return NextResponse.json({ error: "Message not found" }, { status: 404 });
       }
       return NextResponse.json({ ok: true, demo: true, action: "delete" });
     }
-    await deleteGmailMessage(id);
+    await deleteGmailMessage(id, threadId);
     return NextResponse.json({ ok: true, action: "delete" });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Delete failed";

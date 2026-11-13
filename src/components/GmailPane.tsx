@@ -88,7 +88,12 @@ export function GmailPane({ connected }: { connected: boolean }) {
         const list: GmailMessage[] = data.messages || [];
         setMessages(list);
         setSelected((prev) =>
-          prev ? list.find((m) => m.id === prev.id) || null : null,
+          prev
+            ? list.find(
+                (m) =>
+                  m.threadId === prev.threadId || m.id === prev.id,
+              ) || null
+            : null,
         );
         setError(null);
       })
@@ -167,29 +172,37 @@ export function GmailPane({ connected }: { connected: boolean }) {
     resetComposeFields();
   };
 
-  const removeFromList = (id: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-    if (selected?.id === id) {
+  const removeFromList = (msg: GmailMessage) => {
+    setMessages((prev) =>
+      prev.filter((m) => m.threadId !== msg.threadId && m.id !== msg.id),
+    );
+    if (
+      selected &&
+      (selected.threadId === msg.threadId || selected.id === msg.id)
+    ) {
       setSelected(null);
       setComposeMode(null);
     }
   };
 
-  const runMailAction = async (id: string, action: "archive" | "delete") => {
+  const runMailAction = async (
+    msg: GmailMessage,
+    action: "archive" | "delete",
+  ) => {
     setActing(true);
     setError(null);
     try {
-      const res = await fetch(`/api/gmail/messages/${id}`, {
+      const res = await fetch(`/api/gmail/messages/${msg.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, threadId: msg.threadId }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || `${action} failed`);
         return;
       }
-      removeFromList(id);
+      removeFromList(msg);
       setStatus(
         action === "archive"
           ? data.demo
@@ -279,7 +292,7 @@ export function GmailPane({ connected }: { connected: boolean }) {
         {status && <p className="muted">{status}</p>}
         <ul className="mail-list">
           {messages.map((m, index) => (
-            <li key={m.id} className="mail-list-entry">
+            <li key={m.threadId} className="mail-list-entry">
               {index > 0 && (
                 <div className="mail-link" aria-hidden="true">
                   <span className="mail-link-line" />
@@ -428,7 +441,7 @@ export function GmailPane({ connected }: { connected: boolean }) {
                 type="button"
                 className="btn-ghost"
                 disabled={acting}
-                onClick={() => runMailAction(selected.id, "archive")}
+                onClick={() => runMailAction(selected, "archive")}
               >
                 Archive
               </button>
@@ -442,7 +455,7 @@ export function GmailPane({ connected }: { connected: boolean }) {
                       "Move this email to trash? You can recover it from Gmail Trash.",
                     )
                   ) {
-                    void runMailAction(selected.id, "delete");
+                    void runMailAction(selected, "delete");
                   }
                 }}
               >

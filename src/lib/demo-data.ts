@@ -58,7 +58,7 @@ export const demoSlackMessages: Record<string, SlackMessage[]> = {
 
 export const demoGmail: GmailMessage[] = [
   {
-    id: "m1",
+    id: "m1a",
     threadId: "t1",
     from: "Priya Chen <priya@acme.co>",
     to: "you@example.com, Alex Kim <alex@acme.co>",
@@ -66,9 +66,21 @@ export const demoGmail: GmailMessage[] = [
     subject: "Q2 roadmap sync follow-ups",
     snippet:
       "Capturing action items from yesterday — can you own the timeline doc?",
+    date: new Date(Date.now() - 1000 * 60 * 200).toISOString(),
+    unread: false,
+    messageId: "<m1a@demo.comms-hub>",
+  },
+  {
+    id: "m1b",
+    threadId: "t1",
+    from: "Alex Kim <alex@acme.co>",
+    to: "you@example.com, Priya Chen <priya@acme.co>",
+    cc: "Maya Singh <maya@acme.co>",
+    subject: "Re: Q2 roadmap sync follow-ups",
+    snippet: "Happy to pair on the timeline — I'll draft a first cut today.",
     date: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
     unread: true,
-    messageId: "<m1@demo.comms-hub>",
+    messageId: "<m1b@demo.comms-hub>",
   },
   {
     id: "m2",
