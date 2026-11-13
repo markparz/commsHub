@@ -57,7 +57,7 @@ export async function listGmailMessages(max = 20): Promise<GmailMessage[]> {
   const list = await gmail.users.messages.list({
     userId: "me",
     maxResults: max,
-    q: "in:inbox",
+    q: "in:inbox category:primary",
   });
 
   const ids = list.data.messages || [];
@@ -71,6 +71,10 @@ export async function listGmailMessages(max = 20): Promise<GmailMessage[]> {
       format: "metadata",
       metadataHeaders: ["From", "To", "Cc", "Subject", "Date", "Message-ID"],
     });
+    const labels = full.data.labelIds || [];
+    // Keep Primary-tab mail only (exclude Social/Promotions/Updates/Forums)
+    if (!labels.includes("CATEGORY_PERSONAL")) continue;
+
     const headers = full.data.payload?.headers;
     const cc = headerValue(headers, "Cc");
     messages.push({
@@ -82,7 +86,7 @@ export async function listGmailMessages(max = 20): Promise<GmailMessage[]> {
       subject: headerValue(headers, "Subject") || "(no subject)",
       snippet: full.data.snippet || "",
       date: headerValue(headers, "Date") || new Date().toISOString(),
-      unread: (full.data.labelIds || []).includes("UNREAD"),
+      unread: labels.includes("UNREAD"),
       messageId: headerValue(headers, "Message-ID") || undefined,
     });
   }

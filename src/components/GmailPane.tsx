@@ -8,7 +8,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
 import type { GmailMessage } from "@/lib/types";
 import {
   extractEmail,
@@ -24,6 +24,25 @@ import { ResizeHandle } from "./ResizeHandle";
 const MIN_PREVIEW = 22;
 const MAX_PREVIEW = 75;
 const MAIL_REFRESH_MS = 2 * 60 * 1000;
+const MAX_DESC_WORDS = 40;
+
+function parseMailDate(value: string): Date {
+  const parsed = new Date(value);
+  if (isValid(parsed)) return parsed;
+  const iso = parseISO(value);
+  return isValid(iso) ? iso : new Date();
+}
+
+function formatReceivedAt(value: string): string {
+  return format(parseMailDate(value), "MMM d, yyyy · h:mma");
+}
+
+function briefDescription(snippet: string, maxWords = MAX_DESC_WORDS): string {
+  const words = snippet.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "No preview available.";
+  if (words.length <= maxWords) return words.join(" ");
+  return `${words.slice(0, maxWords).join(" ")}…`;
+}
 
 type ComposeMode = "new" | "reply" | "reply-all" | "forward";
 
@@ -259,8 +278,13 @@ export function GmailPane({ connected }: { connected: boolean }) {
         {error && <p className="error-line">{error}</p>}
         {status && <p className="muted">{status}</p>}
         <ul className="mail-list">
-          {messages.map((m) => (
-            <li key={m.id}>
+          {messages.map((m, index) => (
+            <li key={m.id} className="mail-list-entry">
+              {index > 0 && (
+                <div className="mail-link" aria-hidden="true">
+                  <span className="mail-link-line" />
+                </div>
+              )}
               <button
                 type="button"
                 className={
@@ -284,8 +308,15 @@ export function GmailPane({ connected }: { connected: boolean }) {
                 <span className="mail-from">{m.from.split("<")[0].trim()}</span>
                 <span className="mail-subject">{m.subject}</span>
                 <span className="mail-time">
-                  {formatDistanceToNow(new Date(m.date), { addSuffix: true })}
+                  {formatReceivedAt(m.date)}
+                  <span className="mail-time-rel">
+                    {" · "}
+                    {formatDistanceToNow(parseMailDate(m.date), {
+                      addSuffix: true,
+                    })}
+                  </span>
                 </span>
+                <span className="mail-desc">{briefDescription(m.snippet)}</span>
               </button>
             </li>
           ))}

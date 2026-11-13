@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       : undefined;
     const attendees = Array.isArray(body.attendees)
       ? body.attendees
-          .map((entry) =>
+          .map((entry: string | { email?: string; displayName?: string; responseStatus?: string }) =>
             typeof entry === "string"
               ? { email: entry }
               : {
@@ -55,13 +55,13 @@ export async function POST(req: NextRequest) {
                   responseStatus: entry.responseStatus,
                 },
           )
-          .filter((a) => a.email)
+          .filter((a: { email: string }) => a.email)
       : typeof body.attendees === "string"
         ? body.attendees
             .split(",")
             .map((s: string) => s.trim())
             .filter(Boolean)
-            .map((email) => ({ email }))
+            .map((email: string) => ({ email }))
         : undefined;
 
     if (!title || !start || !end) {
