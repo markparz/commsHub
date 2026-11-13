@@ -3,15 +3,27 @@ import {
   addDemoCalendarEvent,
   listDemoCalendarEvents,
 } from "@/lib/demo-calendar";
-import { createCalendarEvent, listCalendarEvents } from "@/lib/google";
-import { isDemoMode } from "@/lib/session";
+import {
+  createCalendarEvent,
+  filterUpcomingEvents,
+  listCalendarEvents,
+} from "@/lib/google";
+import { getSession, isDemoMode } from "@/lib/session";
+
+async function shouldUseDemo() {
+  const session = await getSession();
+  if (session.googleAccessToken) return false;
+  return isDemoMode();
+}
 
 export async function GET() {
   try {
-    if (isDemoMode()) {
-      return NextResponse.json({ events: listDemoCalendarEvents() });
+    if (await shouldUseDemo()) {
+      return NextResponse.json({
+        events: filterUpcomingEvents(listDemoCalendarEvents()),
+      });
     }
-    const events = await listCalendarEvents();
+    const events = filterUpcomingEvents(await listCalendarEvents());
     return NextResponse.json({ events });
   } catch (err) {
     const message =
@@ -31,12 +43,25 @@ export async function POST(req: NextRequest) {
       ? String(body.description).trim()
       : undefined;
     const attendees = Array.isArray(body.attendees)
-      ? body.attendees.map(String).filter(Boolean)
+      ? body.attendees
+          .map((entry) =>
+            typeof entry === "string"
+              ? { email: entry }
+              : {
+                  email: String(entry.email || ""),
+                  displayName: entry.displayName
+                    ? String(entry.displayName)
+                    : undefined,
+                  responseStatus: entry.responseStatus,
+                },
+          )
+          .filter((a) => a.email)
       : typeof body.attendees === "string"
         ? body.attendees
             .split(",")
             .map((s: string) => s.trim())
             .filter(Boolean)
+            .map((email) => ({ email }))
         : undefined;
 
     if (!title || !start || !end) {
@@ -52,15 +77,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (isDemoMode()) {
+    if (await shouldUseDemo()) {
       const event = addDemoCalendarEvent({
         title,
         start: new Date(start).toISOString(),
         end: new Date(end).toISOString(),
         location,
+        description,
         attendees,
       });
       return NextResponse.json({ event, demo: true });
+    }
+
+    const session = await getSession();
+    if (!session.googleAccessToken) {
+      return NextResponse.json(
+        { error: "Connect Google to create events" },
+        { status: 401 },
+      );
     }
 
     const event = await createCalendarEvent({

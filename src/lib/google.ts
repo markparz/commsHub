@@ -173,15 +173,116 @@ export async function listCalendarEvents(
     maxResults: 40,
   });
 
-  return (res.data.items || []).map((ev) => ({
-    id: ev.id || crypto.randomUUID(),
-    title: ev.summary || "(no title)",
-    start: ev.start?.dateTime || ev.start?.date || "",
-    end: ev.end?.dateTime || ev.end?.date || "",
-    location: ev.location || undefined,
-    meetLink: ev.hangoutLink || undefined,
-    attendees: ev.attendees?.map((a) => a.email || "").filter(Boolean),
-  }));
+  return (res.data.items || []).map((ev) => {
+    const selfAttendee = ev.attendees?.find((a) => a.self);
+    // Pending RSVP — show Accept/Delete in the calendar preview
+    const isInvitation = selfAttendee?.responseStatus === "needsAction";
+
+    return {
+      id: ev.id || crypto.randomUUID(),
+      title: ev.summary || "(no title)",
+      start: ev.start?.dateTime || ev.start?.date || "",
+      end: ev.end?.dateTime || ev.end?.date || "",
+      location: ev.location || undefined,
+      meetLink: ev.hangoutLink || undefined,
+      attendees: (ev.attendees || [])
+        .filter((a) => Boolean(a.email))
+        .map((a) => ({
+          email: a.email!,
+          displayName: a.displayName || undefined,
+          responseStatus: a.responseStatus as
+            | "needsAction"
+            | "declined"
+            | "tentative"
+            | "accepted"
+            | undefined,
+          self: a.self || undefined,
+        })),
+      description: ev.description || undefined,
+      isInvitation,
+    };
+  });
+}
+
+/** Keep events that have not ended yet (in-progress stays visible). */
+export function filterUpcomingEvents(events: CalendarEvent[]): CalendarEvent[] {
+  const now = Date.now();
+  return events.filter((ev) => {
+    const end = new Date(ev.end || ev.start).getTime();
+    if (Number.isNaN(end)) return true;
+    return end > now;
+  });
+}
+
+function sanitizeAttendees(
+  attendees: {
+    email?: string | null;
+    displayName?: string | null;
+    optional?: boolean | null;
+    responseStatus?: string | null;
+    organizer?: boolean | null;
+    self?: boolean | null;
+    resource?: boolean | null;
+    comment?: string | null;
+    additionalGuests?: number | null;
+  }[],
+) {
+  return attendees
+    .filter((a) => Boolean(a.email))
+    .map((a) => ({
+      email: a.email!,
+      ...(a.displayName ? { displayName: a.displayName } : {}),
+      ...(a.optional != null ? { optional: a.optional } : {}),
+      ...(a.responseStatus ? { responseStatus: a.responseStatus } : {}),
+      ...(a.organizer != null ? { organizer: a.organizer } : {}),
+      ...(a.self != null ? { self: a.self } : {}),
+      ...(a.resource != null ? { resource: a.resource } : {}),
+      ...(a.comment ? { comment: a.comment } : {}),
+      ...(a.additionalGuests != null
+        ? { additionalGuests: a.additionalGuests }
+        : {}),
+    }));
+}
+
+export async function acceptCalendarInvitation(eventId: string) {
+  const auth = await getAuthedGoogleClient();
+  if (!auth) throw new Error("Google not connected");
+
+  const calendar = google.calendar({ version: "v3", auth });
+  const existing = await calendar.events.get({
+    calendarId: "primary",
+    eventId,
+  });
+
+  const attendees = existing.data.attendees || [];
+  if (!attendees.some((a) => a.self)) {
+    throw new Error("You are not listed as an attendee on this invitation");
+  }
+
+  const nextAttendees = sanitizeAttendees(
+    attendees.map((a) =>
+      a.self ? { ...a, responseStatus: "accepted" } : a,
+    ),
+  );
+
+  await calendar.events.patch({
+    calendarId: "primary",
+    eventId,
+    sendUpdates: "all",
+    requestBody: { attendees: nextAttendees },
+  });
+}
+
+export async function deleteCalendarEvent(eventId: string) {
+  const auth = await getAuthedGoogleClient();
+  if (!auth) throw new Error("Google not connected");
+
+  const calendar = google.calendar({ version: "v3", auth });
+  await calendar.events.delete({
+    calendarId: "primary",
+    eventId,
+    sendUpdates: "all",
+  });
 }
 
 export type NewCalendarEvent = {
@@ -189,7 +290,7 @@ export type NewCalendarEvent = {
   start: string;
   end: string;
   location?: string;
-  attendees?: string[];
+  attendees?: (string | { email: string })[];
   description?: string;
 };
 
@@ -210,7 +311,9 @@ export async function createCalendarEvent(
       description: input.description || undefined,
       start: { dateTime: input.start, timeZone },
       end: { dateTime: input.end, timeZone },
-      attendees: input.attendees?.map((email) => ({ email })),
+      attendees: input.attendees?.map((email) =>
+        typeof email === "string" ? { email } : { email: email.email },
+      ),
     },
   });
 
@@ -222,6 +325,19 @@ export async function createCalendarEvent(
     end: ev.end?.dateTime || input.end,
     location: ev.location || input.location,
     meetLink: ev.hangoutLink || undefined,
-    attendees: ev.attendees?.map((a) => a.email || "").filter(Boolean),
+    attendees: (ev.attendees || [])
+      .filter((a) => Boolean(a.email))
+      .map((a) => ({
+        email: a.email!,
+        displayName: a.displayName || undefined,
+        responseStatus: a.responseStatus as
+          | "needsAction"
+          | "declined"
+          | "tentative"
+          | "accepted"
+          | undefined,
+        self: a.self || undefined,
+      })),
+    description: ev.description || input.description,
   };
 }

@@ -638,15 +638,159 @@ a:hover {
 .calendar-body {
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.calendar-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  height: calc(100% - var(--cal-preview, 38%) - 6px);
+}
+
+.cal-empty {
+  padding: 0.75rem;
 }
 
 .event-card {
+  width: 100%;
   display: grid;
-  grid-template-columns: 4.5rem 1fr;
+  grid-template-columns: 7.25rem 1fr;
   gap: 0.75rem;
-  padding: 0.85rem 0.2rem;
+  padding: 0.85rem 0.55rem;
+  border: none;
   border-bottom: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.event-card:hover,
+.event-card.active {
+  background: rgba(31, 111, 91, 0.1);
+}
+
+/* Distinct light colors per conflict cluster (same time window = same color) */
+.event-card.event-conflict-0 {
+  background: #ffe4c4;
+}
+.event-card.event-conflict-0:hover,
+.event-card.event-conflict-0.active {
+  background: #ffd7a8;
+}
+
+.event-card.event-conflict-1 {
+  background: #fde2e1;
+}
+.event-card.event-conflict-1:hover,
+.event-card.event-conflict-1.active {
+  background: #f9cdcb;
+}
+
+.event-card.event-conflict-2 {
+  background: #e8f0d8;
+}
+.event-card.event-conflict-2:hover,
+.event-card.event-conflict-2.active {
+  background: #d9e6c0;
+}
+
+.event-card.event-conflict-3 {
+  background: #e3e8f8;
+}
+.event-card.event-conflict-3:hover,
+.event-card.event-conflict-3.active {
+  background: #d0d8f0;
+}
+
+.event-card.event-conflict-4 {
+  background: #f3e6f5;
+}
+.event-card.event-conflict-4:hover,
+.event-card.event-conflict-4.active {
+  background: #e9d4ed;
+}
+
+.event-card.event-conflict-5 {
+  background: #dff3f0;
+}
+.event-card.event-conflict-5:hover,
+.event-card.event-conflict-5.active {
+  background: #c9eae5;
+}
+
+.event-invite h3 {
+  color: var(--ink);
+}
+
+.event-invite .event-day {
+  color: var(--amber);
+}
+
+.event-preview {
+  flex: 0 0 var(--cal-preview, 38%);
+  height: var(--cal-preview, 38%);
+  min-height: 0;
+  overflow: auto;
+  border-top: none;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.event-preview h3 {
+  margin: 0.25rem 0 0.35rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.event-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.event-preview-when {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.event-preview-section {
+  margin-top: 0.75rem;
+}
+
+.invitee-list {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.invitee.accepted {
+  color: var(--sea);
+  font-weight: 600;
+}
+
+.event-description {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.event-invite-actions {
+  margin-top: 0.9rem;
 }
 
 .event-time {
@@ -664,7 +808,9 @@ a:hover {
 
 .event-clock {
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 .event-main h3 {

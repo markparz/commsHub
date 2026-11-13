@@ -109,7 +109,21 @@ export function buildDemoCalendar(): CalendarEvent[] {
       end: addMinutes(soon, 25).toISOString(),
       location: "Zoom",
       meetLink: "https://meet.google.com/demo-alert",
-      attendees: ["you@example.com", "sam@example.com"],
+      attendees: [
+        {
+          email: "you@example.com",
+          displayName: "You",
+          responseStatus: "accepted",
+          self: true,
+        },
+        {
+          email: "sam@example.com",
+          displayName: "Sam",
+          responseStatus: "accepted",
+        },
+      ],
+      description:
+        "Short demo meeting used to verify the 1-minute alert banner and sound.",
     },
     {
       id: "e2",
@@ -117,7 +131,26 @@ export function buildDemoCalendar(): CalendarEvent[] {
       start: later.toISOString(),
       end: addMinutes(later, 45).toISOString(),
       location: "Room 4B",
-      attendees: ["maya@acme.co", "you@example.com"],
+      attendees: [
+        {
+          email: "maya@acme.co",
+          displayName: "Maya",
+          responseStatus: "accepted",
+        },
+        {
+          email: "you@example.com",
+          displayName: "You",
+          responseStatus: "accepted",
+          self: true,
+        },
+        {
+          email: "alex@acme.co",
+          displayName: "Alex",
+          responseStatus: "needsAction",
+        },
+      ],
+      description:
+        "Walk through the latest Comms Hub panel layouts and approve the ship checklist.",
     },
     {
       id: "e3",
@@ -125,7 +158,27 @@ export function buildDemoCalendar(): CalendarEvent[] {
       start: afternoon.toISOString(),
       end: addMinutes(afternoon, 60).toISOString(),
       meetLink: "https://meet.google.com/abc-defg-hij",
-      attendees: ["lee@partners.io", "you@example.com"],
+      attendees: [
+        {
+          email: "lee@partners.io",
+          displayName: "Lee Ortiz",
+          responseStatus: "accepted",
+        },
+        {
+          email: "you@example.com",
+          displayName: "You",
+          responseStatus: "needsAction",
+          self: true,
+        },
+        {
+          email: "priya@acme.co",
+          displayName: "Priya Chen",
+          responseStatus: "tentative",
+        },
+      ],
+      description:
+        "Kickoff agenda: goals, integration timeline, and success metrics for the Acme pilot.",
+      isInvitation: true,
     },
   ];
 }

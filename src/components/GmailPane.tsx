@@ -23,6 +23,7 @@ import { ResizeHandle } from "./ResizeHandle";
 
 const MIN_PREVIEW = 22;
 const MAX_PREVIEW = 75;
+const MAIL_REFRESH_MS = 2 * 60 * 1000;
 
 type ComposeMode = "new" | "reply" | "reply-all" | "forward";
 
@@ -60,19 +61,27 @@ export function GmailPane({ connected }: { connected: boolean }) {
     42,
   );
 
-  const load = () => {
+  const load = useCallback(() => {
     fetch("/api/gmail/messages")
       .then((r) => r.json())
       .then((data) => {
         if (data.error) throw new Error(data.error);
-        setMessages(data.messages || []);
+        const list: GmailMessage[] = data.messages || [];
+        setMessages(list);
+        setSelected((prev) =>
+          prev ? list.find((m) => m.id === prev.id) || null : null,
+        );
+        setError(null);
       })
       .catch((e) => setError(e.message));
-  };
+  }, []);
 
   useEffect(() => {
-    if (connected) load();
-  }, [connected]);
+    if (!connected) return;
+    load();
+    const id = setInterval(load, MAIL_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [connected, load]);
 
   const dragPreview = useCallback(
     (deltaPx: number) => {

@@ -30,6 +30,13 @@ export type SlackMessage = {
   channelId: string;
 };
 
+export type CalendarAttendee = {
+  email: string;
+  displayName?: string;
+  responseStatus?: "needsAction" | "declined" | "tentative" | "accepted";
+  self?: boolean;
+};
+
 export type CalendarEvent = {
   id: string;
   title: string;
@@ -37,5 +44,8 @@ export type CalendarEvent = {
   end: string;
   location?: string;
   meetLink?: string;
-  attendees?: string[];
+  attendees?: CalendarAttendee[];
+  description?: string;
+  /** True when this is a meeting invite awaiting your response. */
+  isInvitation?: boolean;
 };
