@@ -87,11 +87,8 @@ export async function listGmailMessages(max = 150): Promise<GmailMessage[]> {
     const threadUnread = threadMessages.some((m) =>
       (m.labelIds || []).includes("UNREAD"),
     );
-    // Keep Primary-tab mail only (exclude Social/Promotions/Updates/Forums)
-    const isPrimary = threadMessages.some((m) =>
-      (m.labelIds || []).includes("CATEGORY_PERSONAL"),
-    );
-    if (!isPrimary) continue;
+    // Trust Gmail's category:primary search — many Primary messages do not
+    // carry CATEGORY_PERSONAL and were being dropped incorrectly.
 
     const headers = latest.payload?.headers;
     const cc = headerValue(headers, "Cc");
