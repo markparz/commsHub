@@ -1,4 +1,10 @@
 import { google } from "googleapis";
+import {
+  invitationTitleFromSubject,
+  isCalendarInvitationSubject,
+  parseIcsInvite,
+  type ParsedInvite,
+} from "./ical";
 import { getSession } from "./session";
 import type { CalendarEvent, GmailMessage } from "./types";
 
@@ -89,21 +95,260 @@ export async function listGmailMessages(max = 20): Promise<GmailMessage[]> {
 
     const headers = latest.payload?.headers;
     const cc = headerValue(headers, "Cc");
+    const subject = headerValue(headers, "Subject") || "(no subject)";
     messages.push({
       id: latest.id || item.id,
       threadId: item.id,
       from: headerValue(headers, "From"),
       to: headerValue(headers, "To"),
       cc: cc || undefined,
-      subject: headerValue(headers, "Subject") || "(no subject)",
+      subject,
       snippet: latest.snippet || thread.data.snippet || "",
       date: headerValue(headers, "Date") || new Date().toISOString(),
       unread: threadUnread || labels.includes("UNREAD"),
       messageId: headerValue(headers, "Message-ID") || undefined,
+      isInvitation: isCalendarInvitationSubject(subject),
     });
   }
 
   return messages;
+}
+
+type MimePart = {
+  mimeType?: string | null;
+  filename?: string | null;
+  body?: { data?: string | null; attachmentId?: string | null } | null;
+  parts?: MimePart[] | null;
+};
+
+function decodeBase64Url(data: string) {
+  return Buffer.from(
+    data.replace(/-/g, "+").replace(/_/g, "/"),
+    "base64",
+  ).toString("utf8");
+}
+
+function findCalendarParts(part: MimePart | undefined | null): MimePart[] {
+  if (!part) return [];
+  const out: MimePart[] = [];
+  const mime = (part.mimeType || "").toLowerCase();
+  const name = (part.filename || "").toLowerCase();
+  if (mime.includes("text/calendar") || name.endsWith(".ics")) {
+    out.push(part);
+  }
+  for (const child of part.parts || []) {
+    out.push(...findCalendarParts(child));
+  }
+  return out;
+}
+
+async function loadMessageIcs(
+  gmail: ReturnType<typeof google.gmail>,
+  messageId: string,
+): Promise<string | null> {
+  const full = await gmail.users.messages.get({
+    userId: "me",
+    id: messageId,
+    format: "full",
+  });
+  const parts = findCalendarParts(full.data.payload as MimePart);
+  for (const part of parts) {
+    if (part.body?.data) return decodeBase64Url(part.body.data);
+    if (part.body?.attachmentId) {
+      const att = await gmail.users.messages.attachments.get({
+        userId: "me",
+        messageId,
+        id: part.body.attachmentId,
+      });
+      if (att.data.data) return decodeBase64Url(att.data.data);
+    }
+  }
+  return null;
+}
+
+function normalizeTitle(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+async function findInvitationEventId(
+  calendar: ReturnType<typeof google.calendar>,
+  invite: ParsedInvite,
+  subject: string,
+): Promise<string | undefined> {
+  if (invite.uid) {
+    const byUid = await calendar.events.list({
+      calendarId: "primary",
+      iCalUID: invite.uid,
+      maxResults: 5,
+      showDeleted: false,
+    });
+    const hit = byUid.data.items?.find((ev) => ev.id);
+    if (hit?.id) return hit.id;
+  }
+
+  const title =
+    invite.summary || invitationTitleFromSubject(subject) || undefined;
+  if (!title) return undefined;
+
+  const windowStart = invite.start
+    ? new Date(new Date(invite.start).getTime() - 1000 * 60 * 60 * 24)
+    : new Date();
+  const windowEnd = invite.end
+    ? new Date(new Date(invite.end).getTime() + 1000 * 60 * 60 * 24)
+    : new Date(Date.now() + 1000 * 60 * 60 * 24 * 90);
+
+  const listed = await calendar.events.list({
+    calendarId: "primary",
+    timeMin: windowStart.toISOString(),
+    timeMax: windowEnd.toISOString(),
+    singleEvents: true,
+    maxResults: 50,
+    q: title,
+  });
+
+  const wanted = normalizeTitle(title);
+  const match = (listed.data.items || []).find((ev) => {
+    const summary = normalizeTitle(ev.summary || "");
+    if (summary !== wanted && !summary.includes(wanted)) return false;
+    const self = ev.attendees?.find((a) => a.self);
+    return !self || self.responseStatus === "needsAction";
+  });
+  return match?.id || undefined;
+}
+
+async function importInviteAsEvent(
+  calendar: ReturnType<typeof google.calendar>,
+  invite: ParsedInvite,
+  subject: string,
+): Promise<string> {
+  if (!invite.start || !invite.end) {
+    throw new Error("Invitation is missing start/end times");
+  }
+
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const isAllDay = /^\d{4}-\d{2}-\d{2}$/.test(invite.start);
+  const summary =
+    invite.summary ||
+    invitationTitleFromSubject(subject) ||
+    subject ||
+    "Accepted invitation";
+
+  const attendees = Array.from(
+    new Set(
+      [
+        ...(invite.organizerEmail ? [invite.organizerEmail] : []),
+        ...invite.attendeeEmails,
+      ].map((e) => e.toLowerCase()),
+    ),
+  ).map((email) => ({
+    email,
+    responseStatus:
+      email === invite.organizerEmail ? "accepted" : "needsAction",
+  }));
+
+  const res = await calendar.events.insert({
+    calendarId: "primary",
+    sendUpdates: "all",
+    requestBody: {
+      summary,
+      description: invite.description,
+      location: invite.location,
+      ...(invite.uid ? { iCalUID: invite.uid } : {}),
+      start: isAllDay
+        ? { date: invite.start }
+        : {
+            dateTime: invite.start.includes("T")
+              ? invite.start
+              : `${invite.start}T09:00:00`,
+            timeZone,
+          },
+      end: isAllDay
+        ? { date: invite.end }
+        : {
+            dateTime: invite.end.includes("T")
+              ? invite.end
+              : `${invite.end}T10:00:00`,
+            timeZone,
+          },
+      attendees,
+      status: "confirmed",
+    },
+  });
+
+  if (!res.data.id) throw new Error("Failed to add invitation to calendar");
+  return res.data.id;
+}
+
+/**
+ * RSVP to a calendar invite from Gmail.
+ * Accept: add/find the event, mark accepted, archive the email.
+ * Decline: decline on calendar if present (do not add), archive the email.
+ */
+export async function respondToGmailInvitation(
+  messageId: string,
+  response: "accepted" | "declined",
+  threadId?: string,
+): Promise<{ eventId?: string }> {
+  const auth = await getAuthedGoogleClient();
+  if (!auth) throw new Error("Google not connected");
+
+  const gmail = google.gmail({ version: "v1", auth });
+  const calendar = google.calendar({ version: "v3", auth });
+
+  const meta = await gmail.users.messages.get({
+    userId: "me",
+    id: messageId,
+    format: "metadata",
+    metadataHeaders: ["Subject"],
+  });
+  const subject = headerValue(meta.data.payload?.headers, "Subject");
+
+  const ics = await loadMessageIcs(gmail, messageId);
+  const invite = ics ? parseIcsInvite(ics) : { attendeeEmails: [] as string[] };
+
+  let eventId = await findInvitationEventId(calendar, invite, subject);
+
+  if (response === "accepted") {
+    if (!eventId) {
+      if (!ics || !invite.start || !invite.end) {
+        throw new Error(
+          "Could not find a calendar invite on this email. Open it in Calendar to accept.",
+        );
+      }
+      eventId = await importInviteAsEvent(calendar, invite, subject);
+    }
+    try {
+      await respondToCalendarInvitation(eventId, "accepted");
+    } catch {
+      // Event may have been inserted without self as attendee — still on calendar
+    }
+  } else if (eventId) {
+    try {
+      await respondToCalendarInvitation(eventId, "declined");
+    } catch {
+      // Still archive the invite email even if calendar RSVP fails
+    }
+  }
+
+  await archiveGmailMessage(
+    messageId,
+    threadId || meta.data.threadId || undefined,
+  );
+  return { eventId };
+}
+
+export async function acceptGmailInvitation(
+  messageId: string,
+  threadId?: string,
+): Promise<{ eventId?: string }> {
+  return respondToGmailInvitation(messageId, "accepted", threadId);
+}
+
+export async function declineGmailInvitation(
+  messageId: string,
+  threadId?: string,
+): Promise<{ eventId?: string }> {
+  return respondToGmailInvitation(messageId, "declined", threadId);
 }
 
 function encodeRawMessage(lines: string[]) {
@@ -272,7 +517,10 @@ function sanitizeAttendees(
     }));
 }
 
-export async function acceptCalendarInvitation(eventId: string) {
+export async function respondToCalendarInvitation(
+  eventId: string,
+  response: "accepted" | "declined",
+) {
   const auth = await getAuthedGoogleClient();
   if (!auth) throw new Error("Google not connected");
 
@@ -289,7 +537,7 @@ export async function acceptCalendarInvitation(eventId: string) {
 
   const nextAttendees = sanitizeAttendees(
     attendees.map((a) =>
-      a.self ? { ...a, responseStatus: "accepted" } : a,
+      a.self ? { ...a, responseStatus: response } : a,
     ),
   );
 
@@ -299,6 +547,14 @@ export async function acceptCalendarInvitation(eventId: string) {
     sendUpdates: "all",
     requestBody: { attendees: nextAttendees },
   });
+}
+
+export async function acceptCalendarInvitation(eventId: string) {
+  return respondToCalendarInvitation(eventId, "accepted");
+}
+
+export async function declineCalendarInvitation(eventId: string) {
+  return respondToCalendarInvitation(eventId, "declined");
 }
 
 export async function deleteCalendarEvent(eventId: string) {

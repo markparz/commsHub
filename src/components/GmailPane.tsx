@@ -187,7 +187,7 @@ export function GmailPane({ connected }: { connected: boolean }) {
 
   const runMailAction = async (
     msg: GmailMessage,
-    action: "archive" | "delete",
+    action: "archive" | "delete" | "accept-invite" | "decline-invite",
   ) => {
     setActing(true);
     setError(null);
@@ -203,15 +203,17 @@ export function GmailPane({ connected }: { connected: boolean }) {
         return;
       }
       removeFromList(msg);
-      setStatus(
-        action === "archive"
-          ? data.demo
-            ? "Archived (demo)"
-            : "Archived"
-          : data.demo
-            ? "Deleted (demo)"
-            : "Moved to trash",
-      );
+      const statusByAction: Record<typeof action, string> = {
+        "accept-invite": data.demo
+          ? "Accepted & added to calendar (demo)"
+          : "Accepted & added to calendar",
+        "decline-invite": data.demo
+          ? "Declined invitation (demo)"
+          : "Declined invitation",
+        archive: data.demo ? "Archived (demo)" : "Archived",
+        delete: data.demo ? "Deleted (demo)" : "Moved to trash",
+      };
+      setStatus(statusByAction[action]);
     } finally {
       setActing(false);
     }
@@ -298,39 +300,95 @@ export function GmailPane({ connected }: { connected: boolean }) {
                   <span className="mail-link-line" />
                 </div>
               )}
-              <button
-                type="button"
+              <div
                 className={
                   selected?.id === m.id
-                    ? "mail-item active"
+                    ? "mail-row active"
                     : m.unread
-                      ? "mail-item unread"
-                      : "mail-item"
+                      ? "mail-row unread"
+                      : "mail-row"
                 }
-                onClick={() => {
-                  setSelected(m);
-                  if (
-                    composeMode !== "reply" &&
-                    composeMode !== "reply-all" &&
-                    composeMode !== "forward"
-                  ) {
-                    setComposeMode(null);
-                  }
-                }}
               >
-                <span className="mail-from">{m.from.split("<")[0].trim()}</span>
-                <span className="mail-subject">{m.subject}</span>
-                <span className="mail-time">
-                  {formatReceivedAt(m.date)}
-                  <span className="mail-time-rel">
-                    {" · "}
-                    {formatDistanceToNow(parseMailDate(m.date), {
-                      addSuffix: true,
-                    })}
+                <button
+                  type="button"
+                  className="mail-item"
+                  onClick={() => {
+                    setSelected(m);
+                    if (
+                      composeMode !== "reply" &&
+                      composeMode !== "reply-all" &&
+                      composeMode !== "forward"
+                    ) {
+                      setComposeMode(null);
+                    }
+                  }}
+                >
+                  <span className="mail-from">
+                    {m.from.split("<")[0].trim()}
                   </span>
-                </span>
-                <span className="mail-desc">{briefDescription(m.snippet)}</span>
-              </button>
+                  <span className="mail-subject">{m.subject}</span>
+                  <span className="mail-time">
+                    {formatReceivedAt(m.date)}
+                    <span className="mail-time-rel">
+                      {" · "}
+                      {formatDistanceToNow(parseMailDate(m.date), {
+                        addSuffix: true,
+                      })}
+                    </span>
+                  </span>
+                  <span className="mail-desc">
+                    {briefDescription(m.snippet)}
+                  </span>
+                </button>
+                <div className="mail-row-actions">
+                  {m.isInvitation && (
+                    <>
+                      <button
+                        type="button"
+                        className="mail-row-accept btn-primary"
+                        disabled={acting}
+                        aria-label={`Accept invitation ${m.subject}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void runMailAction(m, "accept-invite");
+                        }}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        className="mail-row-decline btn-ghost"
+                        disabled={acting}
+                        aria-label={`Decline invitation ${m.subject}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void runMailAction(m, "decline-invite");
+                        }}
+                      >
+                        Decline
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="mail-row-delete btn-danger"
+                    disabled={acting}
+                    aria-label={`Delete ${m.subject}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (
+                        window.confirm(
+                          "Move this email to trash? You can recover it from Gmail Trash.",
+                        )
+                      ) {
+                        void runMailAction(m, "delete");
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
             </li>
           ))}
         </ul>
@@ -398,7 +456,78 @@ export function GmailPane({ connected }: { connected: boolean }) {
             </div>
           </form>
         ) : selected ? (
-          <article>
+          <article className="mail-preview">
+            <div className="mail-preview-toolbar">
+              <div className="compose-actions mail-actions">
+                {selected.isInvitation && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      disabled={acting}
+                      onClick={() => runMailAction(selected, "accept-invite")}
+                    >
+                      {acting ? "Working…" : "Accept & add to calendar"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      disabled={acting}
+                      onClick={() => runMailAction(selected, "decline-invite")}
+                    >
+                      Decline
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className={selected.isInvitation ? "btn-ghost" : "btn-primary"}
+                  onClick={() => startReply(selected)}
+                >
+                  Reply
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => startReplyAll(selected)}
+                >
+                  Reply all
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => startForward(selected)}
+                >
+                  Forward
+                </button>
+              </div>
+              <div className="compose-actions mail-actions mail-manage-actions">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled={acting}
+                  onClick={() => runMailAction(selected, "archive")}
+                >
+                  {acting ? "Working…" : "Archive"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  disabled={acting}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Move this email to trash? You can recover it from Gmail Trash.",
+                      )
+                    ) {
+                      void runMailAction(selected, "delete");
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
             <h3>{selected.subject}</h3>
             <p className="msg-meta">
               <strong>{selected.from}</strong>
@@ -415,53 +544,6 @@ export function GmailPane({ connected }: { connected: boolean }) {
               </p>
             )}
             <p className="mail-snippet">{selected.snippet}</p>
-            <div className="compose-actions mail-actions">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => startReply(selected)}
-              >
-                Reply
-              </button>
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => startReplyAll(selected)}
-              >
-                Reply all
-              </button>
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => startForward(selected)}
-              >
-                Forward
-              </button>
-              <button
-                type="button"
-                className="btn-ghost"
-                disabled={acting}
-                onClick={() => runMailAction(selected, "archive")}
-              >
-                Archive
-              </button>
-              <button
-                type="button"
-                className="btn-danger"
-                disabled={acting}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Move this email to trash? You can recover it from Gmail Trash.",
-                    )
-                  ) {
-                    void runMailAction(selected, "delete");
-                  }
-                }}
-              >
-                Delete
-              </button>
-            </div>
           </article>
         ) : (
           <p className="muted">Select a message</p>

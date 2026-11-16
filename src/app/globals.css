@@ -521,10 +521,32 @@ a:hover {
 }
 
 .mail-actions {
-  margin-top: 0.85rem;
+  margin-top: 0;
   padding-top: 0;
   border-top: none;
   flex-wrap: wrap;
+}
+
+.mail-preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: -0.25rem 0 0.85rem;
+  padding: 0.35rem 0 0.65rem;
+  background: linear-gradient(
+    to bottom,
+    rgba(244, 247, 244, 0.96) 65%,
+    transparent
+  );
+}
+
+.mail-manage-actions {
+  margin-left: auto;
 }
 
 .mail-recipients {
@@ -593,12 +615,12 @@ a:hover {
   flex-direction: column;
 }
 
-.mail-list-entry:nth-child(even) .mail-item {
+.mail-list-entry:nth-child(even) .mail-row {
   background: #e8f3ff;
 }
 
-.mail-list-entry:nth-child(even) .mail-item:hover,
-.mail-list-entry:nth-child(even) .mail-item.active {
+.mail-list-entry:nth-child(even) .mail-row:hover,
+.mail-list-entry:nth-child(even) .mail-row.active {
   background: #d6eaff;
 }
 
@@ -616,8 +638,27 @@ a:hover {
   background: rgba(31, 111, 91, 0.35);
 }
 
+.mail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  border-radius: 12px;
+  padding-right: 0.35rem;
+}
+
+.mail-row:hover,
+.mail-row.active {
+  background: rgba(31, 111, 91, 0.1);
+}
+
+.mail-row.unread .mail-subject {
+  font-weight: 650;
+}
+
 .mail-item {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
   text-align: left;
   border: none;
   background: transparent;
@@ -630,13 +671,19 @@ a:hover {
   color: inherit;
 }
 
-.mail-item:hover,
-.mail-item.active {
-  background: rgba(31, 111, 91, 0.1);
+.mail-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-self: center;
+  gap: 0.3rem;
 }
 
-.mail-item.unread .mail-subject {
-  font-weight: 650;
+.mail-row-delete,
+.mail-row-accept,
+.mail-row-decline {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .mail-from,

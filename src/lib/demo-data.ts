@@ -94,6 +94,20 @@ export const demoGmail: GmailMessage[] = [
     messageId: "<m2@demo.comms-hub>",
   },
   {
+    id: "m-invite",
+    threadId: "t-invite",
+    from: "Ben Scheerer <ben@acme.co>",
+    to: "you@example.com",
+    subject:
+      "Invitation: Cloud Marketplace Office Hours @ Wed Dec 16, 2026 10am - 10:45am (EST) (You)",
+    snippet:
+      "You have been invited. Join with Google Meet when it's time — come prepared with questions.",
+    date: new Date(Date.now() - 1000 * 60 * 40).toISOString(),
+    unread: true,
+    messageId: "<m-invite@demo.comms-hub>",
+    isInvitation: true,
+  },
+  {
     id: "m3",
     threadId: "t3",
     from: "Lee Ortiz <lee@partners.io>",

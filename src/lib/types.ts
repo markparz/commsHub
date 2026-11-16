@@ -15,6 +15,8 @@ export type GmailMessage = {
   date: string;
   unread: boolean;
   messageId?: string;
+  /** True when this looks like a calendar invitation email. */
+  isInvitation?: boolean;
 };
 
 export type SlackChannel = {

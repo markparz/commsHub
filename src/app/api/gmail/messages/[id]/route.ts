@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { archiveDemoGmail, deleteDemoGmail } from "@/lib/demo-gmail";
-import { archiveGmailMessage, deleteGmailMessage } from "@/lib/google";
-import { isDemoMode } from "@/lib/session";
+import {
+  acceptDemoGmailInvitation,
+  archiveDemoGmail,
+  declineDemoGmailInvitation,
+  deleteDemoGmail,
+} from "@/lib/demo-gmail";
+import {
+  acceptGmailInvitation,
+  archiveGmailMessage,
+  declineGmailInvitation,
+  deleteGmailMessage,
+} from "@/lib/google";
+import { getSession, isDemoMode } from "@/lib/session";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,11 +24,37 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       threadId?: string;
     };
 
-    if (action !== "archive" && action !== "delete") {
+    if (
+      action !== "archive" &&
+      action !== "delete" &&
+      action !== "accept-invite" &&
+      action !== "decline-invite"
+    ) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    if (isDemoMode()) {
+    const session = await getSession();
+    const useDemo = isDemoMode() && !session.googleAccessToken;
+
+    if (useDemo) {
+      if (action === "accept-invite" || action === "decline-invite") {
+        const result =
+          action === "accept-invite"
+            ? acceptDemoGmailInvitation(id, threadId)
+            : declineDemoGmailInvitation(id, threadId);
+        if (!result.ok) {
+          return NextResponse.json(
+            { error: "Invitation not found" },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json({
+          ok: true,
+          demo: true,
+          action,
+          eventId: result.eventId,
+        });
+      }
       const ok =
         action === "archive"
           ? archiveDemoGmail(id, threadId)
@@ -29,6 +65,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true, demo: true, action });
     }
 
+    if (action === "accept-invite") {
+      const result = await acceptGmailInvitation(id, threadId);
+      return NextResponse.json({ ok: true, action, eventId: result.eventId });
+    }
+    if (action === "decline-invite") {
+      const result = await declineGmailInvitation(id, threadId);
+      return NextResponse.json({ ok: true, action, eventId: result.eventId });
+    }
     if (action === "archive") {
       await archiveGmailMessage(id, threadId);
     } else {
