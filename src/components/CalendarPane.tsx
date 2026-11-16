@@ -228,7 +228,11 @@ export function CalendarPane({ connected, onEvents }: Props) {
       if (action === "delete") {
         setSelected(null);
         setStatus(
-          data.demo ? "Invitation deleted (demo)" : "Invitation deleted",
+          data.demo
+            ? "Event deleted (demo)"
+            : selected?.isInvitation
+              ? "Invitation deleted"
+              : "Event deleted",
         );
       } else {
         setStatus(
@@ -239,6 +243,19 @@ export function CalendarPane({ connected, onEvents }: Props) {
     } finally {
       setActing(false);
     }
+  };
+
+  const deleteSelectedEvent = () => {
+    if (!selected) return;
+    const label = selected.isInvitation ? "invitation" : "appointment";
+    if (
+      !window.confirm(
+        `Delete this ${label} from your calendar? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    void respondToInvitation(selected.id, "delete");
   };
 
   const createEvent = async (e: FormEvent) => {
@@ -424,13 +441,23 @@ export function CalendarPane({ connected, onEvents }: Props) {
               <p className="compose-label">
                 {selected.isInvitation ? "Invitation" : "Event"}
               </p>
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => setSelected(null)}
-              >
-                Close
-              </button>
+              <div className="event-preview-head-actions">
+                <button
+                  type="button"
+                  className="btn-danger"
+                  disabled={acting}
+                  onClick={deleteSelectedEvent}
+                >
+                  {acting ? "Working…" : "Delete"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setSelected(null)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
             <h3>{eventTitle(selected)}</h3>
             <p className="event-preview-when">
@@ -491,22 +518,6 @@ export function CalendarPane({ connected, onEvents }: Props) {
                   onClick={() => respondToInvitation(selected.id, "accept")}
                 >
                   {acting ? "Working…" : "Accept"}
-                </button>
-                <button
-                  type="button"
-                  className="btn-danger"
-                  disabled={acting}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Delete this invitation from your calendar?",
-                      )
-                    ) {
-                      void respondToInvitation(selected.id, "delete");
-                    }
-                  }}
-                >
-                  Delete
                 </button>
               </div>
             )}

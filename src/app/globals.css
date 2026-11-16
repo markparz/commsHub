@@ -874,6 +874,12 @@ a:hover {
   gap: 0.5rem;
 }
 
+.event-preview-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .event-preview-when {
   margin: 0 0 0.35rem;
   font-size: 0.9rem;
