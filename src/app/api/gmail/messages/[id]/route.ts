@@ -4,16 +4,40 @@ import {
   archiveDemoGmail,
   declineDemoGmailInvitation,
   deleteDemoGmail,
+  getDemoGmailDetail,
 } from "@/lib/demo-gmail";
 import {
   acceptGmailInvitation,
   archiveGmailMessage,
   declineGmailInvitation,
   deleteGmailMessage,
+  getGmailMessageDetail,
 } from "@/lib/google";
 import { getSession, isDemoMode } from "@/lib/session";
 
 type Params = { params: Promise<{ id: string }> };
+
+export async function GET(_req: NextRequest, { params }: Params) {
+  try {
+    const { id } = await params;
+    const session = await getSession();
+    const useDemo = isDemoMode() && !session.googleAccessToken;
+
+    if (useDemo) {
+      const message = getDemoGmailDetail(id);
+      if (!message) {
+        return NextResponse.json({ error: "Message not found" }, { status: 404 });
+      }
+      return NextResponse.json({ message, demo: true });
+    }
+
+    const message = await getGmailMessageDetail(id);
+    return NextResponse.json({ message });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to load message";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {

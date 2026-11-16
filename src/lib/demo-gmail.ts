@@ -2,7 +2,7 @@ import { addHours } from "date-fns";
 import { invitationTitleFromSubject } from "./ical";
 import { addDemoCalendarEvent } from "./demo-calendar";
 import { demoGmail } from "./demo-data";
-import type { GmailMessage } from "./types";
+import type { GmailMessage, GmailMessageDetail } from "./types";
 
 let inbox: GmailMessage[] = demoGmail.map((m) => ({ ...m }));
 
@@ -38,6 +38,25 @@ export function archiveDemoGmail(id: string, threadId?: string): boolean {
 
 export function deleteDemoGmail(id: string, threadId?: string): boolean {
   return archiveDemoGmail(id, threadId);
+}
+
+export function getDemoGmailDetail(id: string): GmailMessageDetail | null {
+  const msg = inbox.find((m) => m.id === id);
+  if (!msg) return null;
+  const text = [
+    msg.snippet,
+    "",
+    "—",
+    `From: ${msg.from}`,
+    msg.to ? `To: ${msg.to}` : null,
+    msg.cc ? `Cc: ${msg.cc}` : null,
+    `Date: ${msg.date}`,
+    "",
+    "(Demo mode — full message body is not available.)",
+  ]
+    .filter((line) => line != null)
+    .join("\n");
+  return { ...msg, text, html: undefined };
 }
 
 /** Accept or decline an invite email against the demo calendar. */

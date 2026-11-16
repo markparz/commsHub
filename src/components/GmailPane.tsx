@@ -9,7 +9,7 @@ import {
   type CSSProperties,
 } from "react";
 import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
-import type { GmailMessage } from "@/lib/types";
+import type { GmailMessage, GmailMessageDetail } from "@/lib/types";
 import {
   extractEmail,
   forwardSubject,
@@ -44,6 +44,11 @@ function briefDescription(snippet: string, maxWords = MAX_DESC_WORDS): string {
   return `${words.slice(0, maxWords).join(" ")}…`;
 }
 
+function emailSrcDoc(html: string): string {
+  if (/<html[\s>]/i.test(html)) return html;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8" /><base target="_blank" /><style>body{margin:12px;font:14px/1.5 system-ui,sans-serif;color:#132019;word-wrap:break-word}img{max-width:100%;height:auto}a{color:#1f6f5b}</style></head><body>${html}</body></html>`;
+}
+
 type ComposeMode = "new" | "reply" | "reply-all" | "forward";
 
 const MODE_LABEL: Record<ComposeMode, string> = {
@@ -63,6 +68,8 @@ const SEND_LABEL: Record<ComposeMode, string> = {
 export function GmailPane({ connected }: { connected: boolean }) {
   const [messages, setMessages] = useState<GmailMessage[]>([]);
   const [selected, setSelected] = useState<GmailMessage | null>(null);
+  const [detail, setDetail] = useState<GmailMessageDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [composeMode, setComposeMode] = useState<ComposeMode | null>(null);
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
@@ -106,6 +113,39 @@ export function GmailPane({ connected }: { connected: boolean }) {
     const id = setInterval(load, MAIL_REFRESH_MS);
     return () => clearInterval(id);
   }, [connected, load]);
+
+  useEffect(() => {
+    if (!selected) {
+      setDetail(null);
+      setLoadingDetail(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingDetail(true);
+    setDetail(null);
+
+    fetch(`/api/gmail/messages/${encodeURIComponent(selected.id)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.error) throw new Error(data.error);
+        setDetail(data.message as GmailMessageDetail);
+        setError(null);
+      })
+      .catch((e: Error) => {
+        if (cancelled) return;
+        setError(e.message || "Failed to load message");
+        setDetail(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDetail(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id]);
 
   const dragPreview = useCallback(
     (deltaPx: number) => {
@@ -181,6 +221,7 @@ export function GmailPane({ connected }: { connected: boolean }) {
       (selected.threadId === msg.threadId || selected.id === msg.id)
     ) {
       setSelected(null);
+      setDetail(null);
       setComposeMode(null);
     }
   };
@@ -371,6 +412,18 @@ export function GmailPane({ connected }: { connected: boolean }) {
                   )}
                   <button
                     type="button"
+                    className="mail-row-archive btn-ghost"
+                    disabled={acting}
+                    aria-label={`Archive ${m.subject}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void runMailAction(m, "archive");
+                    }}
+                  >
+                    Archive
+                  </button>
+                  <button
+                    type="button"
                     className="mail-row-delete btn-danger"
                     disabled={acting}
                     aria-label={`Delete ${m.subject}`}
@@ -528,22 +581,39 @@ export function GmailPane({ connected }: { connected: boolean }) {
                 </button>
               </div>
             </div>
-            <h3>{selected.subject}</h3>
+            <h3>{(detail || selected).subject}</h3>
             <p className="msg-meta">
-              <strong>{selected.from}</strong>
+              <strong>{(detail || selected).from}</strong>
               <span>
-                {formatDistanceToNow(new Date(selected.date), {
+                {formatDistanceToNow(new Date((detail || selected).date), {
                   addSuffix: true,
                 })}
               </span>
             </p>
-            {(selected.to || selected.cc) && (
+            {((detail || selected).to || (detail || selected).cc) && (
               <p className="mail-recipients muted">
-                {selected.to && <span>To: {selected.to}</span>}
-                {selected.cc && <span>Cc: {selected.cc}</span>}
+                {(detail || selected).to && (
+                  <span>To: {(detail || selected).to}</span>
+                )}
+                {(detail || selected).cc && (
+                  <span>Cc: {(detail || selected).cc}</span>
+                )}
               </p>
             )}
-            <p className="mail-snippet">{selected.snippet}</p>
+            {loadingDetail ? (
+              <p className="muted">Loading full message…</p>
+            ) : detail?.html ? (
+              <iframe
+                className="mail-body-frame"
+                title="Email body"
+                sandbox=""
+                srcDoc={emailSrcDoc(detail.html)}
+              />
+            ) : detail?.text ? (
+              <pre className="mail-body-text">{detail.text}</pre>
+            ) : (
+              <p className="mail-snippet">{selected.snippet}</p>
+            )}
           </article>
         ) : (
           <p className="muted">Select a message</p>

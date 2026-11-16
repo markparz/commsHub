@@ -6,7 +6,7 @@ import {
   type ParsedInvite,
 } from "./ical";
 import { getSession } from "./session";
-import type { CalendarEvent, GmailMessage } from "./types";
+import type { CalendarEvent, GmailMessage, GmailMessageDetail } from "./types";
 
 export function getGoogleOAuthClient() {
   return new google.auth.OAuth2(
@@ -123,6 +123,59 @@ function decodeBase64Url(data: string) {
     data.replace(/-/g, "+").replace(/_/g, "/"),
     "base64",
   ).toString("utf8");
+}
+
+function collectBodies(
+  part: MimePart | undefined | null,
+  out: { html?: string; text?: string },
+) {
+  if (!part) return;
+  const mime = (part.mimeType || "").toLowerCase();
+  if (part.body?.data) {
+    const decoded = decodeBase64Url(part.body.data);
+    if (mime === "text/html" && !out.html) out.html = decoded;
+    if (mime === "text/plain" && !out.text) out.text = decoded;
+  }
+  for (const child of part.parts || []) {
+    collectBodies(child, out);
+  }
+}
+
+/** Fetch a single message with full HTML/text body for the preview pane. */
+export async function getGmailMessageDetail(
+  id: string,
+): Promise<GmailMessageDetail> {
+  const auth = await getAuthedGoogleClient();
+  if (!auth) throw new Error("Google not connected");
+
+  const gmail = google.gmail({ version: "v1", auth });
+  const full = await gmail.users.messages.get({
+    userId: "me",
+    id,
+    format: "full",
+  });
+
+  const headers = full.data.payload?.headers;
+  const subject = headerValue(headers, "Subject") || "(no subject)";
+  const bodies: { html?: string; text?: string } = {};
+  collectBodies(full.data.payload as MimePart, bodies);
+
+  const labels = full.data.labelIds || [];
+  return {
+    id: full.data.id || id,
+    threadId: full.data.threadId || id,
+    from: headerValue(headers, "From"),
+    to: headerValue(headers, "To"),
+    cc: headerValue(headers, "Cc") || undefined,
+    subject,
+    snippet: full.data.snippet || "",
+    date: headerValue(headers, "Date") || new Date().toISOString(),
+    unread: labels.includes("UNREAD"),
+    messageId: headerValue(headers, "Message-ID") || undefined,
+    isInvitation: isCalendarInvitationSubject(subject),
+    html: bodies.html,
+    text: bodies.text,
+  };
 }
 
 function findCalendarParts(part: MimePart | undefined | null): MimePart[] {

@@ -19,6 +19,12 @@ export type GmailMessage = {
   isInvitation?: boolean;
 };
 
+/** Full message body for the preview pane. */
+export type GmailMessageDetail = GmailMessage & {
+  html?: string;
+  text?: string;
+};
+
 export type SlackChannel = {
   id: string;
   name: string;
