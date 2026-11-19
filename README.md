@@ -105,15 +105,42 @@ Your GitHub user must be able to **push to `main`** on this repo.
 | `data/team-status.json` | Shared status feed (tracked in git) |
 | `/api/status` | GET loads (+ daily `@computer` stamp); POST adds an entry |
 
-## Run with Podman (port 8082)
+## Run with Podman (personal port)
+
+Each person sets their own port in **`.env.local`** (do not commit this file):
+
+```bash
+HOST_PORT=8082
+NEXT_PUBLIC_APP_URL=http://localhost:8082
+GOOGLE_REDIRECT_URI=http://localhost:8082/api/auth/google/callback
+```
+
+Use a different `HOST_PORT` if 8082 is taken on your machine. Keep `NEXT_PUBLIC_APP_URL` and OAuth redirect URIs in sync with that port.
+
+### Agent skill (`comms-hub-ops`)
+
+The repo includes `.cursor/skills/comms-hub-ops/SKILL.md`. In Cursor, kick it off with:
+
+```text
+comms-hub-ops: pull latest and redeploy using my .env.local port
+```
+
+The skill reads `HOST_PORT` from your `.env.local`, announces each step, deploys on that port, and falls back to **3000** if the preferred port fails.
+
+### Manual Podman commands
 
 From the repo root:
 
 ```bash
+# Load your personal port
+set -a && source .env.local && set +a
+PORT="${HOST_PORT:-8082}"
+APP_URL="${NEXT_PUBLIC_APP_URL:-http://localhost:$PORT}"
+
 # Build (demo off for real OAuth)
 podman build -t localhost/comms-hub:local -f Containerfile \
   --build-arg NEXT_PUBLIC_DEMO_MODE=false \
-  --build-arg NEXT_PUBLIC_APP_URL=http://localhost:8082 \
+  --build-arg NEXT_PUBLIC_APP_URL="$APP_URL" \
   .
 
 # Run with git checkout mounted so Status can commit/push
@@ -122,7 +149,7 @@ podman run -d \
   --name comms-hub \
   --user "$(id -u):$(id -g)" \
   --userns=keep-id \
-  -p 8082:3000 \
+  -p "${PORT}:3000" \
   --env-file .env.local \
   -e STATUS_REPO_ROOT=/repo \
   -e STATUS_GIT_SYNC=true \
@@ -132,7 +159,7 @@ podman run -d \
   localhost/comms-hub:local
 ```
 
-Open [http://localhost:8082](http://localhost:8082).
+Open `http://localhost:$PORT`.
 
 Useful commands:
 
@@ -142,7 +169,7 @@ podman stop comms-hub
 podman start comms-hub
 ```
 
-**Google redirect URI** for this setup must be:
+**Google redirect URI** must match your `HOST_PORT` (example for 8082):
 
 `http://localhost:8082/api/auth/google/callback`
 
