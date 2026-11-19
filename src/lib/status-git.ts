@@ -3,6 +3,7 @@ import { promisify } from "util";
 import { getStatusRepoRoot } from "./team-status";
 
 const execFileAsync = promisify(execFile);
+const GIT_TIMEOUT_MS = 12_000;
 
 function gitSyncEnabled() {
   const raw = process.env.STATUS_GIT_SYNC?.trim().toLowerCase();
@@ -18,6 +19,10 @@ function gitToken() {
   );
 }
 
+function scrub(message: string) {
+  return message.replace(/x-access-token:[^@\s]+@/g, "x-access-token:***@");
+}
+
 async function runGit(args: string[], root: string) {
   const { stdout, stderr } = await execFileAsync("git", args, {
     cwd: root,
@@ -26,6 +31,8 @@ async function runGit(args: string[], root: string) {
       GIT_TERMINAL_PROMPT: "0",
     },
     maxBuffer: 2 * 1024 * 1024,
+    timeout: GIT_TIMEOUT_MS,
+    killSignal: "SIGKILL",
   });
   return { stdout: stdout.trim(), stderr: stderr.trim() };
 }
@@ -35,10 +42,7 @@ async function remoteArgs(root: string): Promise<string[]> {
   const token = gitToken();
   if (!token) return ["origin"];
   try {
-    const { stdout } = await runGit(
-      ["remote", "get-url", "origin"],
-      root,
-    );
+    const { stdout } = await runGit(["remote", "get-url", "origin"], root);
     const url = stdout.trim();
     const match = url.match(/github\.com[/:]([^/]+\/[^/.]+)(?:\.git)?$/i);
     if (!match) return ["origin"];
@@ -86,7 +90,7 @@ export async function syncTeamStatusToGit(
     } catch (pullErr) {
       const msg =
         pullErr instanceof Error ? pullErr.message : "git pull failed";
-      console.warn("[status-git] pull:", msg);
+      console.warn("[status-git] pull:", scrub(msg));
     }
 
     await runGit(["add", "data/team-status.json"], root);
@@ -127,8 +131,7 @@ export async function syncTeamStatusToGit(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Git sync failed";
-    // Never echo tokens if they somehow appear in errors
-    const scrubbed = message.replace(/x-access-token:[^@\s]+@/g, "x-access-token:***@");
+    const scrubbed = scrub(message);
     console.error("[status-git]", scrubbed);
     return { attempted: true, ok: false, message: scrubbed };
   }
@@ -155,7 +158,6 @@ export async function pullTeamStatusFromGit(): Promise<StatusGitResult> {
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "git pull failed";
-    const scrubbed = message.replace(/x-access-token:[^@\s]+@/g, "x-access-token:***@");
-    return { attempted: true, ok: false, message: scrubbed };
+    return { attempted: true, ok: false, message: scrub(message) };
   }
 }

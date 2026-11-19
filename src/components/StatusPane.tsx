@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
 import { usePersistedString } from "@/hooks/usePersistedString";
 
@@ -26,6 +26,17 @@ function formatWhen(value: string) {
   })}`;
 }
 
+function friendlyFetchError(err: unknown) {
+  if (err instanceof DOMException && err.name === "AbortError") {
+    return null; // superseded request — ignore
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+    return "Could not reach the Status API (server busy or restarting). Try Refresh in a moment.";
+  }
+  return msg || "Failed to load status";
+}
+
 export function StatusPane() {
   const [author, setAuthor] = usePersistedString(
     "comms-hub-status-author",
@@ -37,11 +48,21 @@ export function StatusPane() {
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const inflight = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { sync?: boolean }) => {
+    const sync = opts?.sync !== false;
+    inflight.current?.abort();
+    const controller = new AbortController();
+    inflight.current = controller;
+
     setLoading(true);
     try {
-      const res = await fetch("/api/status");
+      const url = sync ? "/api/status" : "/api/status?sync=0";
+      const res = await fetch(url, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
       const data = (await res.json()) as StatusResponse;
       if (!res.ok || data.error) {
         throw new Error(data.error || "Failed to load status");
@@ -54,16 +75,24 @@ export function StatusPane() {
         setHint(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load status");
+      const friendly = friendlyFetchError(err);
+      if (friendly) setError(friendly);
     } finally {
-      setLoading(false);
+      if (inflight.current === controller) {
+        setLoading(false);
+        inflight.current = null;
+      }
     }
   }, []);
 
   useEffect(() => {
-    void load();
-    const id = setInterval(() => void load(), 60 * 1000);
-    return () => clearInterval(id);
+    void load({ sync: true });
+    // Poll local file only — avoid git pull every minute (causes Failed to fetch)
+    const id = setInterval(() => void load({ sync: false }), 60 * 1000);
+    return () => {
+      clearInterval(id);
+      inflight.current?.abort();
+    };
   }, [load]);
 
   const onSubmit = async (e: FormEvent) => {
@@ -95,7 +124,8 @@ export function StatusPane() {
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to post status");
+      const friendly = friendlyFetchError(err);
+      setError(friendly || "Failed to post status");
     } finally {
       setPosting(false);
     }
@@ -120,7 +150,7 @@ export function StatusPane() {
           <button
             type="button"
             className="btn-ghost"
-            onClick={() => void load()}
+            onClick={() => void load({ sync: true })}
             disabled={loading}
           >
             Refresh
