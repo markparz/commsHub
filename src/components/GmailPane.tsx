@@ -65,7 +65,19 @@ const SEND_LABEL: Record<ComposeMode, string> = {
   forward: "Send forward",
 };
 
-export function GmailPane({ connected }: { connected: boolean }) {
+export type FocusMailRequest = {
+  messageId: string;
+  threadId: string;
+  nonce: number;
+};
+
+export function GmailPane({
+  connected,
+  focusRequest = null,
+}: {
+  connected: boolean;
+  focusRequest?: FocusMailRequest | null;
+}) {
   const [messages, setMessages] = useState<GmailMessage[]>([]);
   const [selected, setSelected] = useState<GmailMessage | null>(null);
   const [detail, setDetail] = useState<GmailMessageDetail | null>(null);
@@ -82,10 +94,12 @@ export function GmailPane({ connected }: { connected: boolean }) {
   const [sending, setSending] = useState(false);
   const [acting, setActing] = useState(false);
   const layoutRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<GmailMessage[]>([]);
   const [previewPct, setPreviewPct] = usePersistedNumber(
     "comms-hub-mail-preview",
     42,
   );
+  messagesRef.current = messages;
 
   const load = useCallback(() => {
     fetch("/api/gmail/messages")
@@ -113,6 +127,44 @@ export function GmailPane({ connected }: { connected: boolean }) {
     const id = setInterval(load, MAIL_REFRESH_MS);
     return () => clearInterval(id);
   }, [connected, load]);
+
+  useEffect(() => {
+    if (!connected || !focusRequest) return;
+
+    const match =
+      messagesRef.current.find(
+        (m) =>
+          m.id === focusRequest.messageId ||
+          m.threadId === focusRequest.threadId,
+      ) || null;
+
+    if (match) {
+      setSelected(match);
+      setComposeMode(null);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/gmail/messages/${encodeURIComponent(focusRequest.messageId)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.error) throw new Error(data.error);
+        const message = data.message as GmailMessageDetail;
+        setSelected(message);
+        setComposeMode(null);
+        setMessages((prev) =>
+          prev.some((m) => m.id === message.id) ? prev : [message, ...prev],
+        );
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setError(e.message || "Could not open email");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connected, focusRequest]);
 
   useEffect(() => {
     if (!selected) {

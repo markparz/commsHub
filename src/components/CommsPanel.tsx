@@ -12,16 +12,19 @@ import { useMeetingAlerts } from "@/hooks/useMeetingAlerts";
 import { usePersistedNumber } from "@/hooks/usePersistedNumber";
 import { MeetingBanner } from "./MeetingBanner";
 import { SlackPane } from "./SlackPane";
-import { GmailPane } from "./GmailPane";
+import { GmailPane, type FocusMailRequest } from "./GmailPane";
 import { CalendarPane } from "./CalendarPane";
 import { StatusPane } from "./StatusPane";
+import { TodoPane } from "./TodoPane";
 import { QuickLinksPane } from "./QuickLinksPane";
 import { ResizeHandle } from "./ResizeHandle";
 
-type Tab = "slack" | "calendar" | "gmail" | "status" | "links";
+type Tab = "slack" | "calendar" | "gmail" | "status" | "todo" | "links";
 
 const MIN_PAIR = 28;
 const MAX_PAIR = 72;
+const MIN_THIRD = 18;
+const MAX_THIRD = 50;
 const MIN_LEFT = 35;
 const MAX_LEFT = 75;
 const MIN_ROW = 28;
@@ -35,7 +38,22 @@ export function CommsPanel() {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [mobileTab, setMobileTab] = useState<Tab>("slack");
+  const [focusMail, setFocusMail] = useState<FocusMailRequest | null>(null);
+  const focusNonce = useRef(0);
   const onEvents = useCallback((list: CalendarEvent[]) => setEvents(list), []);
+
+  const openEmailFromTodo = useCallback(
+    (ref: { messageId: string; threadId: string }) => {
+      focusNonce.current += 1;
+      setFocusMail({
+        messageId: ref.messageId,
+        threadId: ref.threadId,
+        nonce: focusNonce.current,
+      });
+      setMobileTab("gmail");
+    },
+    [],
+  );
 
   const stackRef = useRef<HTMLDivElement>(null);
   const leftRef = useRef<HTMLDivElement>(null);
@@ -48,16 +66,23 @@ export function CommsPanel() {
     50,
   );
   const [statusPct, setStatusPct] = usePersistedNumber(
-    "comms-hub-col-status",
-    50,
+    "comms-hub-col-status-v2",
+    30,
   );
+  const [todoPct, setTodoPct] = usePersistedNumber("comms-hub-col-todo", 35);
   const [leftTopPct, setLeftTopPct] = usePersistedNumber(
     "comms-hub-row-left-top",
     55,
   );
 
   const calendarPct = Math.max(MIN_PAIR, 100 - slackPct);
-  const linksPct = Math.max(MIN_PAIR, 100 - statusPct);
+  const statusShare = clamp(statusPct, MIN_THIRD, MAX_THIRD);
+  const todoShare = clamp(
+    Math.min(todoPct, 100 - MIN_THIRD - statusShare),
+    MIN_THIRD,
+    MAX_THIRD,
+  );
+  const linksPct = Math.max(MIN_THIRD, 100 - statusShare - todoShare);
   const gmailPct = Math.max(100 - MAX_LEFT, 100 - leftPct);
 
   const googleOn = Boolean(status?.google);
@@ -91,13 +116,34 @@ export function CommsPanel() {
     [setSlackPct],
   );
 
-  const dragStatusLinks = useCallback(
+  const dragStatusTodo = useCallback(
     (deltaPx: number) => {
       const width = bottomLeftRef.current?.clientWidth || 1;
       const deltaPct = (deltaPx / width) * 100;
-      setStatusPct((prev) => clamp(prev + deltaPct, MIN_PAIR, MAX_PAIR));
+      setStatusPct((prev) => {
+        let next = clamp(prev + deltaPct, MIN_THIRD, MAX_THIRD);
+        if (next + todoPct > 100 - MIN_THIRD) {
+          next = 100 - MIN_THIRD - todoPct;
+        }
+        return next;
+      });
     },
-    [setStatusPct],
+    [setStatusPct, todoPct],
+  );
+
+  const dragTodoLinks = useCallback(
+    (deltaPx: number) => {
+      const width = bottomLeftRef.current?.clientWidth || 1;
+      const deltaPct = (deltaPx / width) * 100;
+      setTodoPct((prev) => {
+        let next = clamp(prev + deltaPct, MIN_THIRD, MAX_THIRD);
+        if (statusPct + next > 100 - MIN_THIRD) {
+          next = 100 - MIN_THIRD - statusPct;
+        }
+        return next;
+      });
+    },
+    [setTodoPct, statusPct],
   );
 
   const dragLeftRows = useCallback(
@@ -115,7 +161,7 @@ export function CommsPanel() {
         <div className="brand-block">
           <p className="brand">Comms Hub</p>
           <p className="tagline">
-            Slack, Calendar, Gmail, Status &amp; Quick Links
+            Slack, Calendar, Gmail, Status, To Do &amp; Quick Links
           </p>
         </div>
         <div className="top-actions">
@@ -160,6 +206,7 @@ export function CommsPanel() {
             ["calendar", "Calendar"],
             ["gmail", "Gmail"],
             ["status", "Status"],
+            ["todo", "To Do"],
             ["links", "Links"],
           ] as const
         ).map(([id, label]) => (
@@ -252,7 +299,8 @@ export function CommsPanel() {
             ref={bottomLeftRef}
             style={
               {
-                "--col-status": `${statusPct}%`,
+                "--col-status": `${statusShare}%`,
+                "--col-todo": `${todoShare}%`,
                 "--col-links": `${linksPct}%`,
               } as CSSProperties
             }
@@ -273,8 +321,29 @@ export function CommsPanel() {
 
             <ResizeHandle
               orientation="vertical"
-              label="Resize Status and Quick Links"
-              onDrag={dragStatusLinks}
+              label="Resize Status and To Do"
+              onDrag={dragStatusTodo}
+            />
+
+            <section
+              className={
+                mobileTab === "todo" ? "pane pane-todo show" : "pane pane-todo"
+              }
+            >
+              <header className="pane-head">
+                <h2>To Do</h2>
+                <span className={status?.google ? "dot on" : "dot"} />
+              </header>
+              <TodoPane
+                connected={Boolean(status?.google)}
+                onOpenEmail={openEmailFromTodo}
+              />
+            </section>
+
+            <ResizeHandle
+              orientation="vertical"
+              label="Resize To Do and Quick Links"
+              onDrag={dragTodoLinks}
             />
 
             <section
@@ -308,7 +377,10 @@ export function CommsPanel() {
             <h2>Gmail</h2>
             <span className={status?.google ? "dot on" : "dot"} />
           </header>
-          <GmailPane connected={Boolean(status?.google)} />
+          <GmailPane
+            connected={Boolean(status?.google)}
+            focusRequest={focusMail}
+          />
         </section>
       </div>
     </div>

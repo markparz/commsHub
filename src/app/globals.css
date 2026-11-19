@@ -304,9 +304,11 @@ a:hover {
 
 .workspace-left-bottom {
   grid-template-columns:
-    minmax(0, var(--col-status, 50%))
+    minmax(0, var(--col-status, 30%))
     6px
-    minmax(0, var(--col-links, 50%));
+    minmax(0, var(--col-todo, 35%))
+    6px
+    minmax(0, var(--col-links, 35%));
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -396,6 +398,7 @@ a:hover {
 .pane-gmail,
 .pane-status,
 .pane-scratch,
+.pane-todo,
 .pane-links {
   animation: none;
 }
@@ -532,6 +535,153 @@ a:hover {
   white-space: pre-wrap;
   line-height: 1.45;
   font-size: 0.92rem;
+}
+
+.todo-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.todo-status {
+  margin: 0;
+  padding: 0 0.75rem 0.35rem;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.todo-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0.55rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.todo-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem;
+  border-radius: 12px;
+  padding: 0.55rem 0.45rem;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.todo-row:nth-child(even) {
+  background: #e8f3ff;
+}
+
+.todo-row-clickable .todo-main {
+  cursor: pointer;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
+.todo-row-clickable .todo-main:hover .todo-title {
+  color: var(--sea);
+}
+
+.todo-row-clickable .todo-main:disabled {
+  cursor: default;
+}
+
+.todo-main {
+  flex: 1 1 100%;
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.todo-row .todo-due-field {
+  flex: 1 1 auto;
+  margin-top: 0;
+}
+
+.todo-row .todo-done {
+  margin-left: auto;
+}
+
+.todo-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.todo-meta,
+.todo-subject {
+  margin: 0;
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-done {
+  flex-shrink: 0;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+}
+
+.todo-due {
+  font-weight: 600;
+  color: var(--sea);
+}
+
+.todo-due.overdue {
+  color: var(--alert);
+}
+
+.todo-due-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+}
+
+.todo-due-field input[type="datetime-local"] {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  max-width: 100%;
+}
+
+.todo-add-form {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--line);
+  background: rgba(244, 247, 244, 0.96);
+}
+
+.todo-add-form input[type="text"],
+.todo-add-form > input:not([type]) {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  background: rgba(255, 255, 255, 0.75);
 }
 
 .scratch-body {
