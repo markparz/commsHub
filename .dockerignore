@@ -1,0 +1,14 @@
+.git
+.gitignore
+.next
+node_modules
+npm-debug.log*
+.env
+.env.local
+.env.*.local
+README.md
+*.md
+.DS_Store
+.vercel
+coverage
+eslint.config.mjs
