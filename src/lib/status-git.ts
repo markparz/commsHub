@@ -3,7 +3,7 @@ import { promisify } from "util";
 import { getStatusRepoRoot } from "./team-status";
 
 const execFileAsync = promisify(execFile);
-const GIT_TIMEOUT_MS = 12_000;
+const GIT_TIMEOUT_MS = 45_000;
 
 function gitSyncEnabled() {
   const raw = process.env.STATUS_GIT_SYNC?.trim().toLowerCase();
@@ -37,20 +37,34 @@ async function runGit(args: string[], root: string) {
   return { stdout: stdout.trim(), stderr: stderr.trim() };
 }
 
-/** Use tokenized HTTPS remote for pull/push when a token is available. */
-async function remoteArgs(root: string): Promise<string[]> {
+/**
+ * Prefer tokenized HTTPS URL when available; otherwise "origin".
+ * Pulls must use fetch+merge — `git pull <url> main` errors with
+ * "Cannot fast-forward to multiple branches".
+ */
+async function resolveRemote(root: string): Promise<string> {
   const token = gitToken();
-  if (!token) return ["origin"];
   try {
     const { stdout } = await runGit(["remote", "get-url", "origin"], root);
     const url = stdout.trim();
+    if (!token) return "origin";
     const match = url.match(/github\.com[/:]([^/]+\/[^/.]+)(?:\.git)?$/i);
-    if (!match) return ["origin"];
+    if (!match) return "origin";
     const repo = match[1].replace(/\.git$/i, "");
-    return [`https://x-access-token:${token}@github.com/${repo}.git`];
+    return `https://x-access-token:${token}@github.com/${repo}.git`;
   } catch {
-    return ["origin"];
+    return "origin";
   }
+}
+
+async function pullMain(root: string, remote: string) {
+  // Avoid `git pull <url> main` which fails with multiple-branches ff error.
+  await runGit(["fetch", remote, "main"], root);
+  await runGit(["merge", "--ff-only", "FETCH_HEAD"], root);
+}
+
+async function pushMain(root: string, remote: string) {
+  await runGit(["push", remote, "HEAD:main"], root);
 }
 
 export type StatusGitResult = {
@@ -85,9 +99,9 @@ export async function syncPathsToGit(
   }
 
   try {
-    const remote = await remoteArgs(root);
+    const remote = await resolveRemote(root);
     try {
-      await runGit(["pull", "--ff-only", ...remote, "main"], root);
+      await pullMain(root, remote);
     } catch (pullErr) {
       const msg =
         pullErr instanceof Error ? pullErr.message : "git pull failed";
@@ -124,7 +138,7 @@ export async function syncPathsToGit(
       root,
     );
 
-    await runGit(["push", ...remote, "main"], root);
+    await pushMain(root, remote);
     return {
       attempted: true,
       ok: true,
@@ -156,8 +170,8 @@ export async function pullTeamStatusFromGit(): Promise<StatusGitResult> {
   const root = getStatusRepoRoot();
   try {
     await runGit(["rev-parse", "--is-inside-work-tree"], root);
-    const remote = await remoteArgs(root);
-    await runGit(["pull", "--ff-only", ...remote, "main"], root);
+    const remote = await resolveRemote(root);
+    await pullMain(root, remote);
     return {
       attempted: true,
       ok: true,

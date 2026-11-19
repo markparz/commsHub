@@ -87,8 +87,8 @@ export function StatusPane() {
 
   useEffect(() => {
     void load({ sync: true });
-    // Poll local file only — avoid git pull every minute (causes Failed to fetch)
-    const id = setInterval(() => void load({ sync: false }), 60 * 1000);
+    // Occasional local poll only — Status is not instant messaging
+    const id = setInterval(() => void load({ sync: false }), 15 * 60 * 1000);
     return () => {
       clearInterval(id);
       inflight.current?.abort();
@@ -167,7 +167,7 @@ export function StatusPane() {
         />
         <div className="status-compose-actions">
           <span className="muted status-sync-hint">
-            Shared via git — posts commit &amp; push to the repo
+            Shared via git · auto-refresh every 15 min · use Refresh to sync now
           </span>
           <button
             type="submit"
