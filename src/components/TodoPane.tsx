@@ -155,6 +155,8 @@ export function TodoPane({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load mail");
       const messages: GmailMessage[] = data.messages || [];
+      const userEmail =
+        typeof data.userEmail === "string" ? data.userEmail : null;
       const ignoredIds = new Set(
         messages.filter(isIgnoredTodoEmail).map((m) => m.id),
       );
@@ -162,7 +164,7 @@ export function TodoPane({
         messages.filter(isIgnoredTodoEmail).map((m) => m.threadId),
       );
       const done = loadCompleted();
-      const found = analyzeEmailsForTodos(messages, done);
+      const found = analyzeEmailsForTodos(messages, done, userEmail);
 
       setItems((prev) => {
         const byId = new Map<string, EmailTodoItem>();
@@ -333,7 +335,9 @@ export function TodoPane({
                     });
                   }}
                 >
-                  <p className="todo-title">{item.title}</p>
+                  <p className="todo-title">
+                    {item.manual ? item.title : item.subject || item.title}
+                  </p>
                   <p className="todo-meta muted">
                     {item.manual ? "Manual" : item.from.split("<")[0].trim()}
                     {" · "}
@@ -351,9 +355,6 @@ export function TodoPane({
                       </>
                     )}
                   </p>
-                  {!item.manual && (
-                    <p className="todo-subject muted">{item.subject}</p>
-                  )}
                 </button>
                 <label
                   className="todo-due-field"

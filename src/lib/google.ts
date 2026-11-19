@@ -66,6 +66,30 @@ export function invalidateGmailListCache() {
   gmailListCache = null;
 }
 
+let gmailUserEmailCache: { at: number; email: string } | null = null;
+const GMAIL_USER_EMAIL_CACHE_MS = 30 * 60 * 1000;
+
+/** Connected Gmail account address (for “To: me” To Do matching). */
+export async function getGmailUserEmail(): Promise<string | null> {
+  if (
+    gmailUserEmailCache &&
+    Date.now() - gmailUserEmailCache.at < GMAIL_USER_EMAIL_CACHE_MS
+  ) {
+    return gmailUserEmailCache.email;
+  }
+
+  const auth = await getAuthedGoogleClient();
+  if (!auth) return null;
+
+  const gmail = google.gmail({ version: "v1", auth });
+  const profile = await gmail.users.getProfile({ userId: "me" });
+  const email = (profile.data.emailAddress || "").trim().toLowerCase();
+  if (!email) return null;
+
+  gmailUserEmailCache = { at: Date.now(), email };
+  return email;
+}
+
 async function fetchGmailMessages(max: number): Promise<GmailMessage[]> {
   const auth = await getAuthedGoogleClient();
   if (!auth) throw new Error("Google not connected");
@@ -103,18 +127,15 @@ async function fetchGmailMessages(max: number): Promise<GmailMessage[]> {
     // carry CATEGORY_PERSONAL and were being dropped incorrectly.
 
     const headers = latest.payload?.headers;
-    // Merge recipients across the whole thread so filters (e.g. memo-list
-    // on an earlier Cc) still apply when the latest reply omits them.
+    // To = latest message only (used for “addressed to me” To Do rules).
+    // Cc merges the whole thread so filters (e.g. memo-list on an earlier
+    // Cc) still apply when the newest reply omits them.
     const threadCc = threadMessages
       .map((m) => headerValue(m.payload?.headers, "Cc"))
       .filter(Boolean)
       .join(", ");
-    const threadTo = threadMessages
-      .map((m) => headerValue(m.payload?.headers, "To"))
-      .filter(Boolean)
-      .join(", ");
     const cc = threadCc || headerValue(headers, "Cc");
-    const to = headerValue(headers, "To") || threadTo;
+    const to = headerValue(headers, "To");
     const subject = headerValue(headers, "Subject") || "(no subject)";
     messages.push({
       id: latest.id || item.id,

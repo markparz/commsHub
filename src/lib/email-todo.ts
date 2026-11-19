@@ -1,3 +1,4 @@
+import { extractEmail, parseAddressList } from "./email";
 import type { GmailMessage } from "./types";
 
 /**
@@ -8,7 +9,9 @@ export const EMAIL_TODO_ANALYSIS_PROMPT = `You are helping Mark triage his Prima
 
 For each email, decide if HE personally needs to do something (reply, confirm, approve, RSVP, review, send something, take an action). Ignore FYI-only newsletters, agendas, and mass updates with no ask of him.
 
-If action is needed, output one short imperative line item (max ~14 words), starting with a verb.
+Also treat mail as action-needed when HIS address is explicitly on the To line of the latest message in the thread (not merely Cc), unless it is clearly FYI/automated or he sent it himself.
+
+If action is needed, use the email subject as the to-do label (nothing else).
 If no personal action is needed, output nothing for that email.
 Never recreate an item that was already completed.`;
 
@@ -46,10 +49,6 @@ function fingerprint(text: string) {
     .slice(0, 80);
 }
 
-function senderName(from: string) {
-  return from.split("<")[0].trim() || from || "Unknown";
-}
-
 export function isIgnoredTodoEmail(message: GmailMessage): boolean {
   // Include subject so tags like "[memo-list]" are caught even if Cc
   // wasn't copied onto the newest reply in the thread.
@@ -65,56 +64,65 @@ export function isIgnoredTodoEmail(message: GmailMessage): boolean {
   return IGNORED_ADDRESSES.some((addr) => haystack.includes(addr));
 }
 
-function buildTitle(message: GmailMessage): string | null {
+/** True when `email` appears on the latest message To header (not Cc). */
+export function isAddressedToUser(
+  message: GmailMessage,
+  userEmail: string | null | undefined,
+): boolean {
+  if (!userEmail?.trim()) return false;
+  const me = userEmail.trim().toLowerCase();
+  const from = extractEmail(message.from).toLowerCase();
+  // Own outbound messages shouldn't become to-dos via this rule.
+  if (from === me) return false;
+  return parseAddressList(message.to).some((addr) => addr.toLowerCase() === me);
+}
+
+function buildTitle(
+  message: GmailMessage,
+  userEmail?: string | null,
+): string | null {
   if (isIgnoredTodoEmail(message)) return null;
 
   const subject = message.subject.trim();
   const snippet = message.snippet.trim();
   const combined = `${subject} ${snippet}`;
+  const addressedToMe = isAddressedToUser(message, userEmail);
 
   if (message.isInvitation && !/^cancel+ed:/i.test(subject)) {
-    return `RSVP: ${subject.replace(/^(updated\s+)?invitation:\s*/i, "").slice(0, 72)}`;
+    return subject || "Calendar invitation";
   }
 
-  if (FYI_ONLY.test(combined) && !ACTION_SUBJECT.test(subject) && !ACTION_BODY.test(snippet)) {
+  // Skip clear automated/noreply mail even when To includes me.
+  if (
+    FYI_ONLY.test(combined) &&
+    !ACTION_SUBJECT.test(subject) &&
+    !ACTION_BODY.test(snippet)
+  ) {
     return null;
   }
 
   const needsAction =
     ACTION_SUBJECT.test(subject) ||
     ACTION_BODY.test(snippet) ||
-    (/^re:/i.test(subject) && message.unread);
+    (/^re:/i.test(subject) && message.unread) ||
+    addressedToMe;
 
   if (!needsAction) return null;
 
-  if (/action required/i.test(subject)) {
-    return subject.replace(/^.*action required\s*[-–:]?\s*/i, "Complete: ").slice(0, 100);
-  }
-  if (/confirm/i.test(combined)) {
-    return `Confirm: ${subject.replace(/^(re:|fwd:)\s*/i, "").slice(0, 80)}`;
-  }
-  if (/approve|sign off/i.test(combined)) {
-    return `Approve/review: ${subject.replace(/^(re:|fwd:)\s*/i, "").slice(0, 80)}`;
-  }
-  if (/please reply|respond|let me know|can you|could you/i.test(combined)) {
-    return `Reply to ${senderName(message.from)}: ${subject.replace(/^(re:|fwd:)\s*/i, "").slice(0, 70)}`;
-  }
-  if (/review/i.test(combined)) {
-    return `Review: ${subject.replace(/^(re:|fwd:)\s*/i, "").slice(0, 80)}`;
-  }
-
-  return `Follow up: ${subject.slice(0, 90)}`;
+  // Display label is the email subject only.
+  return subject || "(no subject)";
 }
 
 /** Derive personal to-do items from inbox messages (skips completed ids). */
 export function analyzeEmailsForTodos(
   messages: GmailMessage[],
   completedIds: Set<string>,
+  userEmail?: string | null,
 ): EmailTodoItem[] {
   const items: EmailTodoItem[] = [];
 
   for (const message of messages) {
-    const title = buildTitle(message);
+    const title = buildTitle(message, userEmail);
     if (!title) continue;
 
     const id = `${message.threadId}:${fingerprint(title)}`;
