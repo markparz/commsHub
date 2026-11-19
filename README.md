@@ -157,10 +157,12 @@ While the app tab is open:
 
 Keep the tab open (or pinned) for reliable reminders; browsers cannot wake a fully closed tab without a push service.
 
-## Gmail refresh
+## Gmail refresh / quotas
 
-- Inbox loads the latest **100** threads  
-- Auto-refresh runs every **10 minutes** (to stay under API limits)
+- Inbox loads the latest **25** threads (each thread is a separate Gmail API call)  
+- Results are **cached for 2 minutes** so Gmail + To Do scans share one fetch  
+- Auto-refresh runs every **10 minutes**  
+- If you see `Quota exceeded` / `Units per minute`, wait ~60 seconds and refresh
 
 ## Stack
 

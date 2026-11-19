@@ -55,7 +55,18 @@ function headerValue(
   );
 }
 
-export async function listGmailMessages(max = 100): Promise<GmailMessage[]> {
+/** Keep list fetches small — each thread detail is a separate Gmail quota hit. */
+const GMAIL_LIST_DEFAULT_MAX = 25;
+const GMAIL_LIST_CACHE_MS = 2 * 60 * 1000;
+
+let gmailListCache: { at: number; messages: GmailMessage[] } | null = null;
+let gmailListInflight: Promise<GmailMessage[]> | null = null;
+
+export function invalidateGmailListCache() {
+  gmailListCache = null;
+}
+
+async function fetchGmailMessages(max: number): Promise<GmailMessage[]> {
   const auth = await getAuthedGoogleClient();
   if (!auth) throw new Error("Google not connected");
 
@@ -70,6 +81,7 @@ export async function listGmailMessages(max = 100): Promise<GmailMessage[]> {
   const threads = list.data.threads || [];
   const messages: GmailMessage[] = [];
 
+  // Fetch thread metadata sequentially to stay under per-user query-cost/minute.
   for (const item of threads) {
     if (!item.id) continue;
     const thread = await gmail.users.threads.get({
@@ -109,6 +121,45 @@ export async function listGmailMessages(max = 100): Promise<GmailMessage[]> {
   }
 
   return messages;
+}
+
+export async function listGmailMessages(
+  max = GMAIL_LIST_DEFAULT_MAX,
+): Promise<GmailMessage[]> {
+  const limit = Math.min(Math.max(1, max), GMAIL_LIST_DEFAULT_MAX);
+
+  if (
+    gmailListCache &&
+    Date.now() - gmailListCache.at < GMAIL_LIST_CACHE_MS
+  ) {
+    return gmailListCache.messages.slice(0, limit);
+  }
+
+  if (gmailListInflight) {
+    const shared = await gmailListInflight;
+    return shared.slice(0, limit);
+  }
+
+  gmailListInflight = (async () => {
+    try {
+      const messages = await fetchGmailMessages(GMAIL_LIST_DEFAULT_MAX);
+      gmailListCache = { at: Date.now(), messages };
+      return messages;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/quota exceeded|rate limit|user-rate limit/i.test(message)) {
+        throw new Error(
+          "Gmail API quota exceeded for this minute. Wait ~60s, then refresh. Comms Hub caches inbox results for 2 minutes to reduce usage.",
+        );
+      }
+      throw err;
+    } finally {
+      gmailListInflight = null;
+    }
+  })();
+
+  const messages = await gmailListInflight;
+  return messages.slice(0, limit);
 }
 
 type MimePart = {
@@ -420,6 +471,7 @@ export async function archiveGmailMessage(id: string, threadId?: string) {
       id: threadId,
       requestBody: { removeLabelIds: ["INBOX"] },
     });
+    invalidateGmailListCache();
     return;
   }
   await gmail.users.messages.modify({
@@ -427,6 +479,7 @@ export async function archiveGmailMessage(id: string, threadId?: string) {
     id,
     requestBody: { removeLabelIds: ["INBOX"] },
   });
+  invalidateGmailListCache();
 }
 
 export async function deleteGmailMessage(id: string, threadId?: string) {
@@ -436,9 +489,11 @@ export async function deleteGmailMessage(id: string, threadId?: string) {
   const gmail = google.gmail({ version: "v1", auth });
   if (threadId) {
     await gmail.users.threads.trash({ userId: "me", id: threadId });
+    invalidateGmailListCache();
     return;
   }
   await gmail.users.messages.trash({ userId: "me", id });
+  invalidateGmailListCache();
 }
 
 export async function sendGmailMessage(
@@ -474,6 +529,7 @@ export async function sendGmailMessage(
       threadId: options?.inReplyTo ? options.threadId : undefined,
     },
   });
+  invalidateGmailListCache();
 }
 
 export async function listCalendarEvents(

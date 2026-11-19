@@ -8,7 +8,7 @@ export async function GET() {
     if (isDemoMode()) {
       return NextResponse.json({ messages: listDemoGmail() });
     }
-    const messages = await listGmailMessages(100);
+    const messages = await listGmailMessages(25);
     return NextResponse.json({ messages });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load mail";
