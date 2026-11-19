@@ -23,7 +23,7 @@ import { ResizeHandle } from "./ResizeHandle";
 
 const MIN_PREVIEW = 22;
 const MAX_PREVIEW = 75;
-const MAIL_REFRESH_MS = 2 * 60 * 1000;
+const MAIL_REFRESH_MS = 10 * 60 * 1000;
 const MAX_DESC_WORDS = 40;
 
 function parseMailDate(value: string): Date {
