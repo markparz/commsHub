@@ -15,10 +15,24 @@ export function getSlackAuthorizeUrl(state: string) {
   return `https://slack.com/oauth/v2/authorize?${params.toString()}`;
 }
 
+/** Session OAuth token, or SLACK_BOT_TOKEN from env (xoxb-…). */
+export function getConfiguredSlackToken(): string | undefined {
+  const fromEnv = process.env.SLACK_BOT_TOKEN?.trim();
+  return fromEnv || undefined;
+}
+
 export async function getSlackClient() {
   const session = await getSession();
-  if (!session.slackAccessToken) return null;
-  return new WebClient(session.slackAccessToken);
+  const token = session.slackAccessToken || getConfiguredSlackToken();
+  if (!token) return null;
+  return new WebClient(token);
+}
+
+export function isSlackConfigured() {
+  return Boolean(
+    getConfiguredSlackToken() ||
+      (process.env.SLACK_CLIENT_ID && process.env.SLACK_CLIENT_SECRET),
+  );
 }
 
 export async function listSlackChannels(): Promise<SlackChannel[]> {

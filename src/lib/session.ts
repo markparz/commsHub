@@ -34,7 +34,8 @@ export function isDemoMode() {
     Boolean(process.env.GOOGLE_CLIENT_ID) &&
     Boolean(process.env.GOOGLE_CLIENT_SECRET);
   const hasSlack =
-    Boolean(process.env.SLACK_CLIENT_ID) &&
-    Boolean(process.env.SLACK_CLIENT_SECRET);
+    Boolean(process.env.SLACK_BOT_TOKEN?.trim()) ||
+    (Boolean(process.env.SLACK_CLIENT_ID) &&
+      Boolean(process.env.SLACK_CLIENT_SECRET));
   return !hasGoogle && !hasSlack;
 }

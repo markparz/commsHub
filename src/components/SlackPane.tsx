@@ -69,7 +69,10 @@ export function SlackPane({ connected }: { connected: boolean }) {
   if (!connected) {
     return (
       <div className="pane-empty">
-        <p>Connect Slack to read channels and send messages.</p>
+        <p>
+          Connect Slack via OAuth, or set <code>SLACK_BOT_TOKEN</code>{" "}
+          (<code>xoxb-…</code>) in <code>.env.local</code> and restart.
+        </p>
         <a className="btn-primary" href="/api/auth/slack">
           Connect Slack
         </a>

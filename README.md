@@ -31,14 +31,27 @@ Open [http://localhost:3000](http://localhost:3000).
 4. Authorized redirect URI: `http://localhost:3000/api/auth/google/callback`  
 5. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`
 
-### Slack
+### Slack (option A — bot token, recommended)
 
-1. [Create a Slack app](https://api.slack.com/apps)  
+1. [Create a Slack app](https://api.slack.com/apps) → **From scratch**  
+2. **OAuth & Permissions** → Bot Token Scopes → add:  
+   `channels:history`, `channels:read`, `chat:write`, `groups:history`, `groups:read`, `im:history`, `im:read`, `mpim:history`, `users:read`  
+3. Click **Install to Workspace** (or Reinstall) and allow access  
+4. Copy **Bot User OAuth Token** (`xoxb-…`) into `.env.local`:
+   ```bash
+   SLACK_BOT_TOKEN=xoxb-your-token-here
+   ```
+5. Restart `npm run dev` — Slack connects automatically (no **Connect Slack** click)  
+6. Invite the bot to any private channels you want to see (`/invite @YourApp`)
+
+### Slack (option B — browser OAuth)
+
+1. Same app as above  
 2. **OAuth & Permissions** → Redirect URL: `http://localhost:3000/api/auth/slack/callback`  
-3. Bot token scopes: `channels:history`, `channels:read`, `chat:write`, `groups:history`, `groups:read`, `im:history`, `im:read`, `users:read`  
-4. Install to workspace; put `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` in `.env.local`
+3. Put `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` in `.env.local`  
+4. Restart, then use **Connect Slack** in the UI
 
-Restart `npm run dev`, then use **Connect Slack** / **Connect Google** in the UI.
+Restart `npm run dev`, then use **Connect Google** (and **Connect Slack** if using OAuth) in the UI.
 
 ## Meeting alerts
 
