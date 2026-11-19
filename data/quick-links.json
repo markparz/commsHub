@@ -6,13 +6,6 @@
       "url": "https://shadowbot.io.redhat.com/agents/sales-assistant",
       "addedBy": "team",
       "createdAt": "2026-11-19T00:00:00.000Z"
-    },
-    {
-      "id": "marks-dashboard",
-      "label": "Mark's Dashboard",
-      "url": "https://app.smartsheet.com/dashboards/34qJppp2hF5h29g6785XjWWgwMX82V5jqRGcrjj1",
-      "addedBy": "team",
-      "createdAt": "2026-11-19T00:00:00.000Z"
     }
   ]
 }
