@@ -172,7 +172,8 @@ export function TodoPane({
             done.has(item.threadId) ||
             ignoredIds.has(item.messageId) ||
             ignoredThreads.has(item.threadId) ||
-            item.from.toLowerCase().includes("memo-list@redhat.com")
+            item.from.toLowerCase().includes("memo-list") ||
+            item.subject.toLowerCase().includes("memo-list")
           ) {
             continue;
           }

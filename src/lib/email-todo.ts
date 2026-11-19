@@ -51,9 +51,17 @@ function senderName(from: string) {
 }
 
 export function isIgnoredTodoEmail(message: GmailMessage): boolean {
-  const haystack = [message.from, message.to, message.cc || ""]
+  // Include subject so tags like "[memo-list]" are caught even if Cc
+  // wasn't copied onto the newest reply in the thread.
+  const haystack = [
+    message.from,
+    message.to,
+    message.cc || "",
+    message.subject,
+  ]
     .join(" ")
     .toLowerCase();
+  if (/\bmemo-list\b/.test(haystack)) return true;
   return IGNORED_ADDRESSES.some((addr) => haystack.includes(addr));
 }
 

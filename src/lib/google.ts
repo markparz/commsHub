@@ -103,13 +103,24 @@ async function fetchGmailMessages(max: number): Promise<GmailMessage[]> {
     // carry CATEGORY_PERSONAL and were being dropped incorrectly.
 
     const headers = latest.payload?.headers;
-    const cc = headerValue(headers, "Cc");
+    // Merge recipients across the whole thread so filters (e.g. memo-list
+    // on an earlier Cc) still apply when the latest reply omits them.
+    const threadCc = threadMessages
+      .map((m) => headerValue(m.payload?.headers, "Cc"))
+      .filter(Boolean)
+      .join(", ");
+    const threadTo = threadMessages
+      .map((m) => headerValue(m.payload?.headers, "To"))
+      .filter(Boolean)
+      .join(", ");
+    const cc = threadCc || headerValue(headers, "Cc");
+    const to = headerValue(headers, "To") || threadTo;
     const subject = headerValue(headers, "Subject") || "(no subject)";
     messages.push({
       id: latest.id || item.id,
       threadId: item.id,
       from: headerValue(headers, "From"),
-      to: headerValue(headers, "To"),
+      to: to || undefined,
       cc: cc || undefined,
       subject,
       snippet: latest.snippet || thread.data.snippet || "",
