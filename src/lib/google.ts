@@ -55,7 +55,7 @@ function headerValue(
   );
 }
 
-export async function listGmailMessages(max = 150): Promise<GmailMessage[]> {
+export async function listGmailMessages(max = 100): Promise<GmailMessage[]> {
   const auth = await getAuthedGoogleClient();
   if (!auth) throw new Error("Google not connected");
 
