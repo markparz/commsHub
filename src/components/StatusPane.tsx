@@ -62,7 +62,7 @@ export function StatusPane() {
 
   useEffect(() => {
     void load();
-    const id = setInterval(() => void load(), 10 * 60 * 1000);
+    const id = setInterval(() => void load(), 60 * 1000);
     return () => clearInterval(id);
   }, [load]);
 
