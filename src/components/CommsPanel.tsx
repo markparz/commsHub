@@ -14,11 +14,11 @@ import { MeetingBanner } from "./MeetingBanner";
 import { SlackPane } from "./SlackPane";
 import { GmailPane } from "./GmailPane";
 import { CalendarPane } from "./CalendarPane";
-import { ScratchPadPane } from "./ScratchPadPane";
+import { StatusPane } from "./StatusPane";
 import { QuickLinksPane } from "./QuickLinksPane";
 import { ResizeHandle } from "./ResizeHandle";
 
-type Tab = "slack" | "calendar" | "gmail" | "scratch" | "links";
+type Tab = "slack" | "calendar" | "gmail" | "status" | "links";
 
 const MIN_PAIR = 28;
 const MAX_PAIR = 72;
@@ -47,8 +47,8 @@ export function CommsPanel() {
     "comms-hub-col-slack-pair",
     50,
   );
-  const [scratchPct, setScratchPct] = usePersistedNumber(
-    "comms-hub-col-scratch",
+  const [statusPct, setStatusPct] = usePersistedNumber(
+    "comms-hub-col-status",
     50,
   );
   const [leftTopPct, setLeftTopPct] = usePersistedNumber(
@@ -57,7 +57,7 @@ export function CommsPanel() {
   );
 
   const calendarPct = Math.max(MIN_PAIR, 100 - slackPct);
-  const linksPct = Math.max(MIN_PAIR, 100 - scratchPct);
+  const linksPct = Math.max(MIN_PAIR, 100 - statusPct);
   const gmailPct = Math.max(100 - MAX_LEFT, 100 - leftPct);
 
   const googleOn = Boolean(status?.google);
@@ -91,13 +91,13 @@ export function CommsPanel() {
     [setSlackPct],
   );
 
-  const dragScratchLinks = useCallback(
+  const dragStatusLinks = useCallback(
     (deltaPx: number) => {
       const width = bottomLeftRef.current?.clientWidth || 1;
       const deltaPct = (deltaPx / width) * 100;
-      setScratchPct((prev) => clamp(prev + deltaPct, MIN_PAIR, MAX_PAIR));
+      setStatusPct((prev) => clamp(prev + deltaPct, MIN_PAIR, MAX_PAIR));
     },
-    [setScratchPct],
+    [setStatusPct],
   );
 
   const dragLeftRows = useCallback(
@@ -115,7 +115,7 @@ export function CommsPanel() {
         <div className="brand-block">
           <p className="brand">Comms Hub</p>
           <p className="tagline">
-            Slack, Calendar, Gmail, Scratch &amp; Quick Links
+            Slack, Calendar, Gmail, Status &amp; Quick Links
           </p>
         </div>
         <div className="top-actions">
@@ -159,7 +159,7 @@ export function CommsPanel() {
             ["slack", "Slack"],
             ["calendar", "Calendar"],
             ["gmail", "Gmail"],
-            ["scratch", "Scratch"],
+            ["status", "Status"],
             ["links", "Links"],
           ] as const
         ).map(([id, label]) => (
@@ -252,29 +252,29 @@ export function CommsPanel() {
             ref={bottomLeftRef}
             style={
               {
-                "--col-scratch": `${scratchPct}%`,
+                "--col-status": `${statusPct}%`,
                 "--col-links": `${linksPct}%`,
               } as CSSProperties
             }
           >
             <section
               className={
-                mobileTab === "scratch"
-                  ? "pane pane-scratch show"
-                  : "pane pane-scratch"
+                mobileTab === "status"
+                  ? "pane pane-status show"
+                  : "pane pane-status"
               }
             >
               <header className="pane-head">
-                <h2>Scratch pad</h2>
+                <h2>Status</h2>
                 <span className="dot on" />
               </header>
-              <ScratchPadPane />
+              <StatusPane />
             </section>
 
             <ResizeHandle
               orientation="vertical"
-              label="Resize Scratch and Quick Links"
-              onDrag={dragScratchLinks}
+              label="Resize Status and Quick Links"
+              onDrag={dragStatusLinks}
             />
 
             <section
