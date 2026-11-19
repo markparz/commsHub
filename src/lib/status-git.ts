@@ -59,8 +59,9 @@ export type StatusGitResult = {
   message: string;
 };
 
-/** Pull latest, commit status file changes, and push to origin. */
-export async function syncTeamStatusToGit(
+/** Pull latest, commit given paths, and push to origin. */
+export async function syncPathsToGit(
+  paths: string[],
   commitMessage: string,
 ): Promise<StatusGitResult> {
   if (!gitSyncEnabled()) {
@@ -93,7 +94,7 @@ export async function syncTeamStatusToGit(
       console.warn("[status-git] pull:", scrub(msg));
     }
 
-    await runGit(["add", "data/team-status.json"], root);
+    await runGit(["add", ...paths], root);
     const { stdout: staged } = await runGit(
       ["diff", "--cached", "--name-only"],
       root,
@@ -102,7 +103,7 @@ export async function syncTeamStatusToGit(
       return {
         attempted: true,
         ok: true,
-        message: "No status file changes to commit",
+        message: "No file changes to commit",
       };
     }
 
@@ -127,7 +128,7 @@ export async function syncTeamStatusToGit(
     return {
       attempted: true,
       ok: true,
-      message: "Committed and pushed status update",
+      message: "Committed and pushed update",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Git sync failed";
@@ -135,6 +136,12 @@ export async function syncTeamStatusToGit(
     console.error("[status-git]", scrubbed);
     return { attempted: true, ok: false, message: scrubbed };
   }
+}
+
+export async function syncTeamStatusToGit(
+  commitMessage: string,
+): Promise<StatusGitResult> {
+  return syncPathsToGit(["data/team-status.json"], commitMessage);
 }
 
 export async function pullTeamStatusFromGit(): Promise<StatusGitResult> {
@@ -154,7 +161,7 @@ export async function pullTeamStatusFromGit(): Promise<StatusGitResult> {
     return {
       attempted: true,
       ok: true,
-      message: "Pulled latest status",
+      message: "Pulled latest from git",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "git pull failed";

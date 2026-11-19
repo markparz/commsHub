@@ -778,8 +778,60 @@ a:hover {
 }
 
 .quick-links-empty {
-  margin: 0.75rem 0.85rem;
+  margin: 0.35rem 0.85rem 0.75rem;
   font-size: 0.9rem;
+}
+
+.quick-links-section {
+  margin: 0.65rem 0.85rem 0.15rem;
+}
+
+.quick-link-badge {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+
+.quick-link-badge.personal {
+  background: rgba(80, 90, 100, 0.12);
+  color: #445;
+}
+
+.quick-link-badge.global {
+  background: rgba(31, 111, 91, 0.15);
+  color: #1f6f5b;
+}
+
+.quick-link-meta {
+  font-size: 0.72rem;
+}
+
+.quick-link-scope {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.quick-link-scope label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.quick-link-scope label.active {
+  border-color: rgba(31, 111, 91, 0.55);
+  background: rgba(31, 111, 91, 0.1);
 }
 
 .quick-links-form {
