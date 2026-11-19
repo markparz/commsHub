@@ -120,7 +120,7 @@ async function fetchGmailMessages(max: number): Promise<GmailMessage[]> {
       id: latest.id || item.id,
       threadId: item.id,
       from: headerValue(headers, "From"),
-      to: to || undefined,
+      to: to || "",
       cc: cc || undefined,
       subject,
       snippet: latest.snippet || thread.data.snippet || "",
