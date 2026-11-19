@@ -155,8 +155,13 @@ export function TodoPane({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load mail");
       const messages: GmailMessage[] = data.messages || [];
-      const userEmail =
-        typeof data.userEmail === "string" ? data.userEmail : null;
+      const userEmails: string[] = Array.isArray(data.userEmails)
+        ? data.userEmails.filter(
+            (e: unknown): e is string => typeof e === "string" && Boolean(e),
+          )
+        : typeof data.userEmail === "string" && data.userEmail
+          ? [data.userEmail]
+          : [];
       const ignoredIds = new Set(
         messages.filter(isIgnoredTodoEmail).map((m) => m.id),
       );
@@ -164,7 +169,7 @@ export function TodoPane({
         messages.filter(isIgnoredTodoEmail).map((m) => m.threadId),
       );
       const done = loadCompleted();
-      const found = analyzeEmailsForTodos(messages, done, userEmail);
+      const found = analyzeEmailsForTodos(messages, done, userEmails);
 
       setItems((prev) => {
         const byId = new Map<string, EmailTodoItem>();

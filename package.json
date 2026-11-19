@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
     "@slack/web-api": "^8.4.0",
     "date-fns": "^4.4.0",
     "googleapis": "^190.0.0",

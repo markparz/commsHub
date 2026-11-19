@@ -695,6 +695,24 @@ a:hover {
 .scratch-hint {
   margin-left: auto;
   font-size: 0.75rem;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scratch-dictate-active {
+  animation: scratch-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes scratch-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
 }
 
 .scratch-editor {

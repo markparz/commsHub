@@ -66,28 +66,71 @@ export function invalidateGmailListCache() {
   gmailListCache = null;
 }
 
-let gmailUserEmailCache: { at: number; email: string } | null = null;
+let gmailUserEmailsCache: { at: number; emails: string[] } | null = null;
 const GMAIL_USER_EMAIL_CACHE_MS = 30 * 60 * 1000;
 
-/** Connected Gmail account address (for “To: me” To Do matching). */
-export async function getGmailUserEmail(): Promise<string | null> {
+function uniqueEmails(emails: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of emails) {
+    const email = raw.trim().toLowerCase();
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+    out.push(email);
+  }
+  return out;
+}
+
+/** Extra addresses from GMAIL_ALIASES env (comma-separated), for non-sendAs aliases. */
+function envGmailAliases(): string[] {
+  const raw = process.env.GMAIL_ALIASES || "";
+  return uniqueEmails(raw.split(/[,;\s]+/));
+}
+
+/**
+ * Primary Gmail address plus send-as / alias addresses (for “To: me” To Do matching).
+ */
+export async function getGmailUserEmails(): Promise<string[]> {
   if (
-    gmailUserEmailCache &&
-    Date.now() - gmailUserEmailCache.at < GMAIL_USER_EMAIL_CACHE_MS
+    gmailUserEmailsCache &&
+    Date.now() - gmailUserEmailsCache.at < GMAIL_USER_EMAIL_CACHE_MS
   ) {
-    return gmailUserEmailCache.email;
+    return gmailUserEmailsCache.emails;
   }
 
   const auth = await getAuthedGoogleClient();
-  if (!auth) return null;
+  if (!auth) return envGmailAliases();
 
   const gmail = google.gmail({ version: "v1", auth });
-  const profile = await gmail.users.getProfile({ userId: "me" });
-  const email = (profile.data.emailAddress || "").trim().toLowerCase();
-  if (!email) return null;
+  const collected: string[] = [...envGmailAliases()];
 
-  gmailUserEmailCache = { at: Date.now(), email };
-  return email;
+  try {
+    const profile = await gmail.users.getProfile({ userId: "me" });
+    if (profile.data.emailAddress) collected.push(profile.data.emailAddress);
+  } catch {
+    /* profile optional if sendAs works */
+  }
+
+  try {
+    const sendAs = await gmail.users.settings.sendAs.list({ userId: "me" });
+    for (const entry of sendAs.data.sendAs || []) {
+      if (entry.sendAsEmail) collected.push(entry.sendAsEmail);
+    }
+  } catch {
+    /* older tokens / restricted scopes — primary + env aliases still work */
+  }
+
+  const emails = uniqueEmails(collected);
+  if (emails.length === 0) return [];
+
+  gmailUserEmailsCache = { at: Date.now(), emails };
+  return emails;
+}
+
+/** Primary connected Gmail address (first of getGmailUserEmails). */
+export async function getGmailUserEmail(): Promise<string | null> {
+  const emails = await getGmailUserEmails();
+  return emails[0] || null;
 }
 
 async function fetchGmailMessages(max: number): Promise<GmailMessage[]> {

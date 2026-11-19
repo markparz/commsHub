@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { listDemoGmail } from "@/lib/demo-gmail";
-import { getGmailUserEmail, listGmailMessages } from "@/lib/google";
+import { getGmailUserEmails, listGmailMessages } from "@/lib/google";
 import { getSession, isDemoMode } from "@/lib/session";
 
 export async function GET() {
@@ -11,13 +11,18 @@ export async function GET() {
       return NextResponse.json({
         messages: listDemoGmail(),
         userEmail: "you@example.com",
+        userEmails: ["you@example.com"],
       });
     }
-    const [messages, userEmail] = await Promise.all([
+    const [messages, userEmails] = await Promise.all([
       listGmailMessages(25),
-      getGmailUserEmail(),
+      getGmailUserEmails(),
     ]);
-    return NextResponse.json({ messages, userEmail });
+    return NextResponse.json({
+      messages,
+      userEmail: userEmails[0] || null,
+      userEmails,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load mail";
     return NextResponse.json({ error: message }, { status: 401 });

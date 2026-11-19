@@ -9,7 +9,7 @@ export const EMAIL_TODO_ANALYSIS_PROMPT = `You are helping Mark triage his Prima
 
 For each email, decide if HE personally needs to do something (reply, confirm, approve, RSVP, review, send something, take an action). Ignore FYI-only newsletters, agendas, and mass updates with no ask of him.
 
-Also treat mail as action-needed when HIS address is explicitly on the To line of the latest message in the thread (not merely Cc), unless it is clearly FYI/automated or he sent it himself.
+Also treat mail as action-needed when HIS address or Gmail alias is explicitly on the To line of the latest message in the thread (not merely Cc), unless it is clearly FYI/automated or he sent it himself.
 
 If action is needed, use the email subject as the to-do label (nothing else).
 If no personal action is needed, output nothing for that email.
@@ -64,29 +64,41 @@ export function isIgnoredTodoEmail(message: GmailMessage): boolean {
   return IGNORED_ADDRESSES.some((addr) => haystack.includes(addr));
 }
 
-/** True when `email` appears on the latest message To header (not Cc). */
+function normalizeUserEmails(
+  userEmails: string | string[] | null | undefined,
+): string[] {
+  if (!userEmails) return [];
+  const list = Array.isArray(userEmails) ? userEmails : [userEmails];
+  return list
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** True when a user address/alias appears on the latest message To header (not Cc). */
 export function isAddressedToUser(
   message: GmailMessage,
-  userEmail: string | null | undefined,
+  userEmails: string | string[] | null | undefined,
 ): boolean {
-  if (!userEmail?.trim()) return false;
-  const me = userEmail.trim().toLowerCase();
+  const mine = new Set(normalizeUserEmails(userEmails));
+  if (mine.size === 0) return false;
   const from = extractEmail(message.from).toLowerCase();
   // Own outbound messages shouldn't become to-dos via this rule.
-  if (from === me) return false;
-  return parseAddressList(message.to).some((addr) => addr.toLowerCase() === me);
+  if (mine.has(from)) return false;
+  return parseAddressList(message.to).some((addr) =>
+    mine.has(addr.toLowerCase()),
+  );
 }
 
 function buildTitle(
   message: GmailMessage,
-  userEmail?: string | null,
+  userEmails?: string | string[] | null,
 ): string | null {
   if (isIgnoredTodoEmail(message)) return null;
 
   const subject = message.subject.trim();
   const snippet = message.snippet.trim();
   const combined = `${subject} ${snippet}`;
-  const addressedToMe = isAddressedToUser(message, userEmail);
+  const addressedToMe = isAddressedToUser(message, userEmails);
 
   if (message.isInvitation && !/^cancel+ed:/i.test(subject)) {
     return subject || "Calendar invitation";
@@ -117,12 +129,12 @@ function buildTitle(
 export function analyzeEmailsForTodos(
   messages: GmailMessage[],
   completedIds: Set<string>,
-  userEmail?: string | null,
+  userEmails?: string | string[] | null,
 ): EmailTodoItem[] {
   const items: EmailTodoItem[] = [];
 
   for (const message of messages) {
-    const title = buildTitle(message, userEmail);
+    const title = buildTitle(message, userEmails);
     if (!title) continue;
 
     const id = `${message.threadId}:${fingerprint(title)}`;
