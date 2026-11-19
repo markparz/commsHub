@@ -777,6 +777,11 @@ a:hover {
   font-size: 0.75rem;
 }
 
+.quick-links-empty {
+  margin: 0.75rem 0.85rem;
+  font-size: 0.9rem;
+}
+
 .quick-links-form {
   margin-top: auto;
   display: flex;

@@ -8,29 +8,15 @@ export type QuickLink = {
   url: string;
 };
 
-const STORAGE_KEY = "comms-hub-quick-links";
-
-export const DEFAULT_QUICK_LINKS: QuickLink[] = [
-  {
-    id: "sales-assistant",
-    label: "Sales Assistant",
-    url: "https://shadowbot.io.redhat.com/agents/sales-assistant",
-  },
-  {
-    id: "marks-dashboard",
-    label: "Mark's Dashboard",
-    url: "https://app.smartsheet.com/dashboards/34qJppp2hF5h29g6785XjWWgwMX82V5jqRGcrjj1",
-  },
-];
+/** Per-browser / per-user only — never shared via git or the server. */
+const STORAGE_KEY = "comms-hub-quick-links-personal";
 
 function loadLinks(): QuickLink[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_QUICK_LINKS;
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as QuickLink[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return DEFAULT_QUICK_LINKS;
-    }
+    if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (link) =>
         link &&
@@ -39,7 +25,7 @@ function loadLinks(): QuickLink[] {
         typeof link.url === "string",
     );
   } catch {
-    return DEFAULT_QUICK_LINKS;
+    return [];
   }
 }
 
@@ -59,7 +45,7 @@ function normalizeUrl(value: string): string | null {
 }
 
 export function QuickLinksPane() {
-  const [links, setLinks] = useState<QuickLink[]>(DEFAULT_QUICK_LINKS);
+  const [links, setLinks] = useState<QuickLink[]>([]);
   const [ready, setReady] = useState(false);
   const [label, setLabel] = useState("");
   const [url, setUrl] = useState("");
@@ -104,36 +90,56 @@ export function QuickLinksPane() {
     setLinks((prev) => prev.filter((link) => link.id !== id));
   };
 
-  const resetDefaults = () => {
-    setLinks(DEFAULT_QUICK_LINKS);
+  const clearAll = () => {
+    setLinks([]);
     setError(null);
   };
 
   return (
     <div className="pane-body quick-links-body">
-      <ul className="quick-links-list">
-        {links.map((link) => (
-          <li key={link.id} className="quick-link-row">
-            <a
-              className="quick-link"
-              href={link.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <span className="quick-link-label">{link.label}</span>
-              <span className="quick-link-url muted">{link.url}</span>
-            </a>
-            <button
-              type="button"
-              className="btn-ghost quick-link-remove"
-              aria-label={`Remove ${link.label}`}
-              onClick={() => removeLink(link.id)}
-            >
-              Remove
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className="pane-toolbar">
+        <span className="muted scratch-hint">
+          Your links only — saved on this device
+        </span>
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={links.length === 0}
+          onClick={clearAll}
+        >
+          Clear all
+        </button>
+      </div>
+
+      {links.length === 0 ? (
+        <p className="muted quick-links-empty">
+          No personal links yet. Add the ones you use most.
+        </p>
+      ) : (
+        <ul className="quick-links-list">
+          {links.map((link) => (
+            <li key={link.id} className="quick-link-row">
+              <a
+                className="quick-link"
+                href={link.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span className="quick-link-label">{link.label}</span>
+                <span className="quick-link-url muted">{link.url}</span>
+              </a>
+              <button
+                type="button"
+                className="btn-ghost quick-link-remove"
+                aria-label={`Remove ${link.label}`}
+                onClick={() => removeLink(link.id)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <form className="quick-links-form" onSubmit={addLink}>
         <p className="compose-label">Add link</p>
@@ -152,13 +158,6 @@ export function QuickLinksPane() {
         <div className="compose-actions">
           <button type="submit" className="btn-primary">
             Add
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={resetDefaults}
-          >
-            Reset defaults
           </button>
         </div>
       </form>
