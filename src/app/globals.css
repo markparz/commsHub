@@ -295,9 +295,11 @@ a:hover {
 
 .workspace-left-top {
   grid-template-columns:
-    minmax(0, var(--col-slack, 50%))
+    minmax(0, var(--col-scratch, 30%))
     6px
-    minmax(0, var(--col-calendar, 50%));
+    minmax(0, var(--col-slack, 35%))
+    6px
+    minmax(0, var(--col-calendar, 35%));
   flex: 0 0 var(--row-left-top, 55%);
   height: var(--row-left-top, 55%);
 }

@@ -14,15 +14,21 @@ import { MeetingBanner } from "./MeetingBanner";
 import { SlackPane } from "./SlackPane";
 import { GmailPane, type FocusMailRequest } from "./GmailPane";
 import { CalendarPane } from "./CalendarPane";
+import { ScratchPadPane } from "./ScratchPadPane";
 import { StatusPane } from "./StatusPane";
 import { TodoPane } from "./TodoPane";
 import { QuickLinksPane } from "./QuickLinksPane";
 import { ResizeHandle } from "./ResizeHandle";
 
-type Tab = "slack" | "calendar" | "gmail" | "status" | "todo" | "links";
+type Tab =
+  | "scratch"
+  | "slack"
+  | "calendar"
+  | "gmail"
+  | "status"
+  | "todo"
+  | "links";
 
-const MIN_PAIR = 28;
-const MAX_PAIR = 72;
 const MIN_THIRD = 18;
 const MAX_THIRD = 50;
 const MIN_LEFT = 35;
@@ -61,9 +67,13 @@ export function CommsPanel() {
   const bottomLeftRef = useRef<HTMLElement>(null);
 
   const [leftPct, setLeftPct] = usePersistedNumber("comms-hub-col-left", 58);
+  const [scratchPct, setScratchPct] = usePersistedNumber(
+    "comms-hub-col-scratch-top",
+    30,
+  );
   const [slackPct, setSlackPct] = usePersistedNumber(
-    "comms-hub-col-slack-pair",
-    50,
+    "comms-hub-col-slack-top",
+    35,
   );
   const [statusPct, setStatusPct] = usePersistedNumber(
     "comms-hub-col-status-v2",
@@ -75,7 +85,13 @@ export function CommsPanel() {
     55,
   );
 
-  const calendarPct = Math.max(MIN_PAIR, 100 - slackPct);
+  const scratchShare = clamp(scratchPct, MIN_THIRD, MAX_THIRD);
+  const slackShare = clamp(
+    Math.min(slackPct, 100 - MIN_THIRD - scratchShare),
+    MIN_THIRD,
+    MAX_THIRD,
+  );
+  const calendarPct = Math.max(MIN_THIRD, 100 - scratchShare - slackShare);
   const statusShare = clamp(statusPct, MIN_THIRD, MAX_THIRD);
   const todoShare = clamp(
     Math.min(todoPct, 100 - MIN_THIRD - statusShare),
@@ -107,13 +123,34 @@ export function CommsPanel() {
     [setLeftPct],
   );
 
+  const dragScratchSlack = useCallback(
+    (deltaPx: number) => {
+      const width = topLeftRef.current?.clientWidth || 1;
+      const deltaPct = (deltaPx / width) * 100;
+      setScratchPct((prev) => {
+        let next = clamp(prev + deltaPct, MIN_THIRD, MAX_THIRD);
+        if (next + slackPct > 100 - MIN_THIRD) {
+          next = 100 - MIN_THIRD - slackPct;
+        }
+        return next;
+      });
+    },
+    [setScratchPct, slackPct],
+  );
+
   const dragSlackCalendar = useCallback(
     (deltaPx: number) => {
       const width = topLeftRef.current?.clientWidth || 1;
       const deltaPct = (deltaPx / width) * 100;
-      setSlackPct((prev) => clamp(prev + deltaPct, MIN_PAIR, MAX_PAIR));
+      setSlackPct((prev) => {
+        let next = clamp(prev + deltaPct, MIN_THIRD, MAX_THIRD);
+        if (scratchPct + next > 100 - MIN_THIRD) {
+          next = 100 - MIN_THIRD - scratchPct;
+        }
+        return next;
+      });
     },
-    [setSlackPct],
+    [setSlackPct, scratchPct],
   );
 
   const dragStatusTodo = useCallback(
@@ -161,7 +198,7 @@ export function CommsPanel() {
         <div className="brand-block">
           <p className="brand">Comms Hub</p>
           <p className="tagline">
-            Slack, Calendar, Gmail, Status, To Do &amp; Quick Links
+            Scratch, Slack, Calendar, Gmail, Status, To Do &amp; Quick Links
           </p>
         </div>
         <div className="top-actions">
@@ -202,6 +239,7 @@ export function CommsPanel() {
       <nav className="mobile-tabs" aria-label="Panels">
         {(
           [
+            ["scratch", "Scratch"],
             ["slack", "Slack"],
             ["calendar", "Calendar"],
             ["gmail", "Gmail"],
@@ -245,11 +283,32 @@ export function CommsPanel() {
             ref={topLeftRef}
             style={
               {
-                "--col-slack": `${slackPct}%`,
+                "--col-scratch": `${scratchShare}%`,
+                "--col-slack": `${slackShare}%`,
                 "--col-calendar": `${calendarPct}%`,
               } as CSSProperties
             }
           >
+            <section
+              className={
+                mobileTab === "scratch"
+                  ? "pane pane-scratch show"
+                  : "pane pane-scratch"
+              }
+            >
+              <header className="pane-head">
+                <h2>Scratch pad</h2>
+                <span className="dot on" />
+              </header>
+              <ScratchPadPane />
+            </section>
+
+            <ResizeHandle
+              orientation="vertical"
+              label="Resize Scratch and Slack"
+              onDrag={dragScratchSlack}
+            />
+
             <section
               className={
                 mobileTab === "slack"
