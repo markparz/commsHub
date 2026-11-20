@@ -93,6 +93,7 @@ export function GmailPane({
   const [status, setStatus] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [acting, setActing] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const layoutRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<GmailMessage[]>([]);
   const [previewPct, setPreviewPct] = usePersistedNumber(
@@ -101,13 +102,25 @@ export function GmailPane({
   );
   messagesRef.current = messages;
 
+  const allChecked =
+    messages.length > 0 && messages.every((m) => checkedIds.has(m.threadId));
+  const checkedCount = checkedIds.size;
+
   const load = useCallback(() => {
     fetch("/api/gmail/messages")
       .then((r) => r.json())
       .then((data) => {
         if (data.error) throw new Error(data.error);
         const list: GmailMessage[] = data.messages || [];
+        const living = new Set(list.map((m) => m.threadId));
         setMessages(list);
+        setCheckedIds((prev) => {
+          const next = new Set<string>();
+          for (const id of prev) {
+            if (living.has(id)) next.add(id);
+          }
+          return next;
+        });
         setSelected((prev) =>
           prev
             ? list.find(
@@ -268,6 +281,13 @@ export function GmailPane({
     setMessages((prev) =>
       prev.filter((m) => m.threadId !== msg.threadId && m.id !== msg.id),
     );
+    setCheckedIds((prev) => {
+      if (!prev.has(msg.threadId) && !prev.has(msg.id)) return prev;
+      const next = new Set(prev);
+      next.delete(msg.threadId);
+      next.delete(msg.id);
+      return next;
+    });
     if (
       selected &&
       (selected.threadId === msg.threadId || selected.id === msg.id)
@@ -276,6 +296,23 @@ export function GmailPane({
       setDetail(null);
       setComposeMode(null);
     }
+  };
+
+  const toggleChecked = (threadId: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(threadId)) next.delete(threadId);
+      else next.add(threadId);
+      return next;
+    });
+  };
+
+  const toggleCheckAll = () => {
+    if (allChecked) {
+      setCheckedIds(new Set());
+      return;
+    }
+    setCheckedIds(new Set(messages.map((m) => m.threadId)));
   };
 
   const runMailAction = async (
@@ -307,6 +344,60 @@ export function GmailPane({
         delete: data.demo ? "Deleted (demo)" : "Moved to trash",
       };
       setStatus(statusByAction[action]);
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const runBulkMailAction = async (action: "archive" | "delete") => {
+    const targets = messages.filter((m) => checkedIds.has(m.threadId));
+    if (targets.length === 0) return;
+    if (
+      action === "delete" &&
+      !window.confirm(
+        `Move ${targets.length} email${targets.length === 1 ? "" : "s"} to trash? You can recover them from Gmail Trash.`,
+      )
+    ) {
+      return;
+    }
+
+    setActing(true);
+    setError(null);
+    let ok = 0;
+    let failed = 0;
+    try {
+      for (const msg of targets) {
+        try {
+          const res = await fetch(`/api/gmail/messages/${msg.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action, threadId: msg.threadId }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            failed += 1;
+            setError(data.error || `${action} failed`);
+            continue;
+          }
+          removeFromList(msg);
+          ok += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      if (ok > 0) {
+        setStatus(
+          action === "archive"
+            ? `Archived ${ok} email${ok === 1 ? "" : "s"}`
+            : `Moved ${ok} email${ok === 1 ? "" : "s"} to trash`,
+        );
+      }
+      if (failed > 0 && ok === 0) {
+        setError(`Could not ${action} selected emails`);
+      } else if (failed > 0) {
+        setError(`${failed} email${failed === 1 ? "" : "s"} failed to ${action}`);
+      }
+      setCheckedIds(new Set());
     } finally {
       setActing(false);
     }
@@ -382,6 +473,40 @@ export function GmailPane({
           <button type="button" className="btn-ghost" onClick={load}>
             Refresh
           </button>
+          {messages.length > 0 && (
+            <label className="mail-select-all">
+              <input
+                type="checkbox"
+                checked={allChecked}
+                disabled={acting}
+                onChange={toggleCheckAll}
+                aria-label={allChecked ? "Deselect all emails" : "Select all emails"}
+              />
+              <span className="muted">
+                {checkedCount > 0 ? `${checkedCount} selected` : "Select"}
+              </span>
+            </label>
+          )}
+          {checkedCount > 0 && (
+            <>
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={acting}
+                onClick={() => void runBulkMailAction("archive")}
+              >
+                Archive selected
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                disabled={acting}
+                onClick={() => void runBulkMailAction("delete")}
+              >
+                Delete selected
+              </button>
+            </>
+          )}
         </div>
         {error && <p className="error-line">{error}</p>}
         {status && <p className="muted">{status}</p>}
@@ -394,14 +519,25 @@ export function GmailPane({
                 </div>
               )}
               <div
-                className={
-                  selected?.id === m.id
-                    ? "mail-row active"
-                    : m.unread
-                      ? "mail-row unread"
-                      : "mail-row"
-                }
+                className={[
+                  "mail-row",
+                  selected?.id === m.id ? "active" : "",
+                  m.unread ? "unread" : "",
+                  checkedIds.has(m.threadId) ? "checked" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               >
+                <label className="mail-check">
+                  <input
+                    type="checkbox"
+                    checked={checkedIds.has(m.threadId)}
+                    disabled={acting}
+                    aria-label={`Select ${m.subject}`}
+                    onChange={() => toggleChecked(m.threadId)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </label>
                 <button
                   type="button"
                   className="mail-item"

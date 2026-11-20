@@ -1184,12 +1184,39 @@ a:hover {
 }
 
 .mail-row:hover,
-.mail-row.active {
+.mail-row.active,
+.mail-row.checked {
   background: rgba(31, 111, 91, 0.1);
 }
 
 .mail-row.unread .mail-subject {
   font-weight: 650;
+}
+
+.mail-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.15rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mail-select-all input,
+.mail-check input {
+  width: 0.95rem;
+  height: 0.95rem;
+  accent-color: var(--accent, #1f6f5b);
+  cursor: pointer;
+}
+
+.mail-check {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  padding: 0 0.15rem 0 0.45rem;
+  cursor: pointer;
 }
 
 .mail-item {
