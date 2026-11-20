@@ -66,6 +66,28 @@ export function invalidateGmailListCache() {
   gmailListCache = null;
 }
 
+export type GmailInboxCounts = {
+  unread: number;
+  total: number;
+};
+
+/** Inbox message counts from the Gmail INBOX label. */
+export async function getGmailInboxCounts(): Promise<GmailInboxCounts> {
+  const auth = await getAuthedGoogleClient();
+  if (!auth) return { unread: 0, total: 0 };
+
+  const gmail = google.gmail({ version: "v1", auth });
+  const label = await gmail.users.labels.get({
+    userId: "me",
+    id: "INBOX",
+  });
+
+  return {
+    unread: label.data.messagesUnread ?? 0,
+    total: label.data.messagesTotal ?? 0,
+  };
+}
+
 let gmailUserEmailsCache: { at: number; emails: string[] } | null = null;
 const GMAIL_USER_EMAIL_CACHE_MS = 30 * 60 * 1000;
 

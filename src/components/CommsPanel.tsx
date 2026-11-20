@@ -12,7 +12,11 @@ import { useMeetingAlerts } from "@/hooks/useMeetingAlerts";
 import { usePersistedNumber } from "@/hooks/usePersistedNumber";
 import { MeetingBanner } from "./MeetingBanner";
 import { SlackPane } from "./SlackPane";
-import { GmailPane, type FocusMailRequest } from "./GmailPane";
+import {
+  GmailPane,
+  type FocusMailRequest,
+  type GmailInboxCounts,
+} from "./GmailPane";
 import { CalendarPane } from "./CalendarPane";
 import { ScratchPadPane } from "./ScratchPadPane";
 import { StatusPane } from "./StatusPane";
@@ -45,8 +49,13 @@ export function CommsPanel() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [mobileTab, setMobileTab] = useState<Tab>("slack");
   const [focusMail, setFocusMail] = useState<FocusMailRequest | null>(null);
+  const [mailCounts, setMailCounts] = useState<GmailInboxCounts | null>(null);
   const focusNonce = useRef(0);
   const onEvents = useCallback((list: CalendarEvent[]) => setEvents(list), []);
+  const onInboxCounts = useCallback(
+    (counts: GmailInboxCounts | null) => setMailCounts(counts),
+    [],
+  );
 
   const openEmailFromTodo = useCallback(
     (ref: { messageId: string; threadId: string }) => {
@@ -433,12 +442,20 @@ export function CommsPanel() {
           }
         >
           <header className="pane-head">
-            <h2>Gmail</h2>
+            <h2 className="pane-head-title">
+              Gmail
+              {mailCounts && (
+                <span className="pane-head-meta muted">
+                  {mailCounts.unread} unread · {mailCounts.total} total
+                </span>
+              )}
+            </h2>
             <span className={status?.google ? "dot on" : "dot"} />
           </header>
           <GmailPane
             connected={Boolean(status?.google)}
             focusRequest={focusMail}
+            onInboxCounts={onInboxCounts}
           />
         </section>
       </div>

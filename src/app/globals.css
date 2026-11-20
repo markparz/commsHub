@@ -896,6 +896,21 @@ a:hover {
   font-weight: 500;
 }
 
+.pane-head-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
+  min-width: 0;
+}
+
+.pane-head-meta {
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
 .dot {
   width: 0.55rem;
   height: 0.55rem;

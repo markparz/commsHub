@@ -71,12 +71,19 @@ export type FocusMailRequest = {
   nonce: number;
 };
 
+export type GmailInboxCounts = {
+  unread: number;
+  total: number;
+};
+
 export function GmailPane({
   connected,
   focusRequest = null,
+  onInboxCounts,
 }: {
   connected: boolean;
   focusRequest?: FocusMailRequest | null;
+  onInboxCounts?: (counts: GmailInboxCounts | null) => void;
 }) {
   const [messages, setMessages] = useState<GmailMessage[]>([]);
   const [selected, setSelected] = useState<GmailMessage | null>(null);
@@ -94,13 +101,24 @@ export function GmailPane({
   const [sending, setSending] = useState(false);
   const [acting, setActing] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [inboxCounts, setInboxCounts] = useState<GmailInboxCounts | null>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<GmailMessage[]>([]);
+  const inboxCountsRef = useRef<GmailInboxCounts | null>(null);
   const [previewPct, setPreviewPct] = usePersistedNumber(
     "comms-hub-mail-preview",
     42,
   );
   messagesRef.current = messages;
+  inboxCountsRef.current = inboxCounts;
+
+  const publishCounts = useCallback(
+    (counts: GmailInboxCounts | null) => {
+      setInboxCounts(counts);
+      onInboxCounts?.(counts);
+    },
+    [onInboxCounts],
+  );
 
   const allChecked =
     messages.length > 0 && messages.every((m) => checkedIds.has(m.threadId));
@@ -129,10 +147,24 @@ export function GmailPane({
               ) || null
             : null,
         );
+        if (
+          data.inbox &&
+          typeof data.inbox.unread === "number" &&
+          typeof data.inbox.total === "number"
+        ) {
+          publishCounts({
+            unread: data.inbox.unread,
+            total: data.inbox.total,
+          });
+        }
         setError(null);
       })
       .catch((e) => setError(e.message));
-  }, []);
+  }, [publishCounts]);
+
+  useEffect(() => {
+    if (!connected) publishCounts(null);
+  }, [connected, publishCounts]);
 
   useEffect(() => {
     if (!connected) return;
@@ -288,6 +320,13 @@ export function GmailPane({
       next.delete(msg.id);
       return next;
     });
+    const current = inboxCountsRef.current;
+    if (current) {
+      publishCounts({
+        unread: Math.max(0, current.unread - (msg.unread ? 1 : 0)),
+        total: Math.max(0, current.total - 1),
+      });
+    }
     if (
       selected &&
       (selected.threadId === msg.threadId || selected.id === msg.id)
