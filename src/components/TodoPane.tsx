@@ -259,7 +259,7 @@ export function TodoPane({
     );
   };
 
-  const addManual = (e: FormEvent) => {
+  const addManual = async (e: FormEvent) => {
     e.preventDefault();
     const title = manualTitle.trim();
     if (!title) return;
@@ -284,7 +284,42 @@ export function TodoPane({
     );
     setManualTitle("");
     setManualDue("");
-    setStatus("Added manual to-do");
+
+    if (!dueAt) {
+      setStatus("Added manual to-do");
+      return;
+    }
+
+    // Block 30 minutes on the calendar starting at the due time.
+    const start = new Date(dueAt);
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
+    try {
+      const res = await fetch("/api/calendar/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          start: start.toISOString(),
+          end: end.toISOString(),
+          description: "From Comms Hub To Do",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "To-do saved, but calendar event failed");
+        setStatus("Added manual to-do (not on calendar)");
+        return;
+      }
+      setError(null);
+      setStatus(
+        data.demo
+          ? "Added to-do + calendar event (demo)"
+          : "Added to-do and calendar event",
+      );
+    } catch {
+      setError("To-do saved, but calendar event failed");
+      setStatus("Added manual to-do (not on calendar)");
+    }
   };
 
   return (
@@ -397,7 +432,7 @@ export function TodoPane({
           required
         />
         <label className="todo-due-field">
-          <span className="muted">Due (optional)</span>
+          <span className="muted">Due (optional — also adds a calendar block)</span>
           <input
             type="datetime-local"
             value={manualDue}
