@@ -11,7 +11,7 @@ import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
 import {
   analyzeEmailsForTodos,
   isIgnoredTodoEmail,
-  isIgnoredTodoSubject,
+  isIgnoredTodoItem,
   type EmailTodoItem,
 } from "@/lib/email-todo";
 import { openMailWindow } from "@/lib/mail-window";
@@ -53,9 +53,7 @@ function loadOpen(): EmailTodoItem[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as EmailTodoItem[];
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item) => item.manual || !isIgnoredTodoSubject(item.subject || ""),
-    );
+    return parsed.filter((item) => item.manual || !isIgnoredTodoItem(item));
   } catch {
     return [];
   }
@@ -186,9 +184,7 @@ export function TodoPane({
             done.has(item.threadId) ||
             ignoredIds.has(item.messageId) ||
             ignoredThreads.has(item.threadId) ||
-            item.from.toLowerCase().includes("memo-list") ||
-            item.subject.toLowerCase().includes("memo-list") ||
-            isIgnoredTodoSubject(item.subject)
+            isIgnoredTodoItem(item)
           ) {
             continue;
           }

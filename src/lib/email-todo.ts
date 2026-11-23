@@ -39,7 +39,10 @@ const ACTION_BODY =
 const FYI_ONLY =
   /\b(daily agenda|newsletter|noreply|no[- ]reply|do not reply|automated|notification only)\b/i;
 
-const IGNORED_ADDRESSES = ["memo-list@redhat.com"];
+const IGNORED_ADDRESSES = [
+  "memo-list@redhat.com",
+  "noreply@seismic.com",
+];
 
 const IGNORED_SUBJECTS = ["you have no events scheduled today."];
 
@@ -56,20 +59,25 @@ export function isIgnoredTodoSubject(subject: string): boolean {
   return IGNORED_SUBJECTS.some((s) => normalized === s || normalized.includes(s));
 }
 
-export function isIgnoredTodoEmail(message: GmailMessage): boolean {
-  // Include subject so tags like "[memo-list]" are caught even if Cc
-  // wasn't copied onto the newest reply in the thread.
-  const haystack = [
-    message.from,
-    message.to,
-    message.cc || "",
-    message.subject,
-  ]
+/** True when From/To/Cc/subject matches an ignored address or subject rule. */
+export function isIgnoredTodoItem(item: {
+  from?: string;
+  to?: string;
+  cc?: string;
+  subject?: string;
+}): boolean {
+  const haystack = [item.from || "", item.to || "", item.cc || "", item.subject || ""]
     .join(" ")
     .toLowerCase();
   if (/\bmemo-list\b/.test(haystack)) return true;
-  if (isIgnoredTodoSubject(message.subject)) return true;
+  if (isIgnoredTodoSubject(item.subject || "")) return true;
   return IGNORED_ADDRESSES.some((addr) => haystack.includes(addr));
+}
+
+export function isIgnoredTodoEmail(message: GmailMessage): boolean {
+  // Include subject so tags like "[memo-list]" are caught even if Cc
+  // wasn't copied onto the newest reply in the thread.
+  return isIgnoredTodoItem(message);
 }
 
 function normalizeUserEmails(
