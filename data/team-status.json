@@ -1,6 +1,30 @@
 {
   "entries": [
     {
+      "id": "0348978d-7a9d-4b79-91e5-3d41e834f85a",
+      "author": "Mark",
+      "text": "added the following to the comms hub\n- number of \"to do\" next to the To do label in that pane\n- when you double click an email or to do it will open that email in a new pop up window\n- removed daily calendar and seismic update emails from to do list\n- changed quick link to only show the labels not the URL underneath to save space in the window pane",
+      "createdAt": "2026-11-23T15:10:26.332Z"
+    },
+    {
+      "id": "dbcbee67-0861-423a-807f-1d7ee2dffe36",
+      "author": "@computer",
+      "text": "Daily status — Monday, November 23, 2026",
+      "createdAt": "2026-11-23T00:20:12.744Z"
+    },
+    {
+      "id": "bfa3e915-1433-4053-a071-d9152cff6c91",
+      "author": "@computer",
+      "text": "Daily status — Sunday, November 22, 2026",
+      "createdAt": "2026-11-22T00:01:26.280Z"
+    },
+    {
+      "id": "c2ed33d2-c80e-4042-80b3-264924b04a4a",
+      "author": "@computer",
+      "text": "Daily status — Saturday, November 21, 2026",
+      "createdAt": "2026-11-21T00:01:28.245Z"
+    },
+    {
       "id": "71dc3bef-d188-4aa0-9d55-adb5d9e4f02f",
       "author": "Mark",
       "text": "That's interesting I got a message from @computer did you get that?",
