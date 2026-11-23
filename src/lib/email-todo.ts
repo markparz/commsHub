@@ -41,12 +41,19 @@ const FYI_ONLY =
 
 const IGNORED_ADDRESSES = ["memo-list@redhat.com"];
 
+const IGNORED_SUBJECTS = ["you have no events scheduled today."];
+
 function fingerprint(text: string) {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 80);
+}
+
+export function isIgnoredTodoSubject(subject: string): boolean {
+  const normalized = subject.trim().toLowerCase();
+  return IGNORED_SUBJECTS.some((s) => normalized === s || normalized.includes(s));
 }
 
 export function isIgnoredTodoEmail(message: GmailMessage): boolean {
@@ -61,6 +68,7 @@ export function isIgnoredTodoEmail(message: GmailMessage): boolean {
     .join(" ")
     .toLowerCase();
   if (/\bmemo-list\b/.test(haystack)) return true;
+  if (isIgnoredTodoSubject(message.subject)) return true;
   return IGNORED_ADDRESSES.some((addr) => haystack.includes(addr));
 }
 

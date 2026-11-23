@@ -1,3 +1,9 @@
+/** Wrap HTML email bodies for sandboxed iframe preview. */
+export function emailSrcDoc(html: string): string {
+  if (/<html[\s>]/i.test(html)) return html;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8" /><base target="_blank" /><style>body{margin:12px;font:14px/1.5 system-ui,sans-serif;color:#132019;word-wrap:break-word}img{max-width:100%;height:auto}a{color:#1f6f5b}</style></head><body>${html}</body></html>`;
+}
+
 /** Pull an address from `Name <email@x.com>` or a bare email string. */
 export function extractEmail(from: string): string {
   const match = from.match(/<([^>]+)>/);

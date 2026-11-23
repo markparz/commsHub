@@ -11,8 +11,10 @@ import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
 import {
   analyzeEmailsForTodos,
   isIgnoredTodoEmail,
+  isIgnoredTodoSubject,
   type EmailTodoItem,
 } from "@/lib/email-todo";
+import { openMailWindow } from "@/lib/mail-window";
 import type { GmailMessage } from "@/lib/types";
 
 const COMPLETED_KEY = "comms-hub-todo-completed";
@@ -50,7 +52,10 @@ function loadOpen(): EmailTodoItem[] {
     const raw = localStorage.getItem(OPEN_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as EmailTodoItem[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) => item.manual || !isIgnoredTodoSubject(item.subject || ""),
+    );
   } catch {
     return [];
   }
@@ -117,9 +122,11 @@ function formatDue(iso?: string) {
 export function TodoPane({
   connected,
   onOpenEmail,
+  onOpenCount,
 }: {
   connected: boolean;
   onOpenEmail?: (ref: { messageId: string; threadId: string }) => void;
+  onOpenCount?: (count: number) => void;
 }) {
   const [items, setItems] = useState<EmailTodoItem[]>([]);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
@@ -180,7 +187,8 @@ export function TodoPane({
             ignoredIds.has(item.messageId) ||
             ignoredThreads.has(item.threadId) ||
             item.from.toLowerCase().includes("memo-list") ||
-            item.subject.toLowerCase().includes("memo-list")
+            item.subject.toLowerCase().includes("memo-list") ||
+            isIgnoredTodoSubject(item.subject)
           ) {
             continue;
           }
@@ -238,6 +246,10 @@ export function TodoPane({
         .sort(sortTodos),
     [items, completed],
   );
+
+  useEffect(() => {
+    onOpenCount?.(openItems.length);
+  }, [openItems.length, onOpenCount]);
 
   const completeItem = (item: EmailTodoItem) => {
     setCompleted((prev) => {
@@ -367,12 +379,22 @@ export function TodoPane({
                   type="button"
                   className="todo-main"
                   disabled={item.manual || !onOpenEmail}
+                  title={
+                    item.manual
+                      ? undefined
+                      : "Click to preview · Double-click to open in a new window"
+                  }
                   onClick={() => {
                     if (item.manual || !onOpenEmail) return;
                     onOpenEmail({
                       messageId: item.messageId,
                       threadId: item.threadId,
                     });
+                  }}
+                  onDoubleClick={(e) => {
+                    if (item.manual) return;
+                    e.preventDefault();
+                    openMailWindow(item.messageId);
                   }}
                 >
                   <p className="todo-title">

@@ -50,12 +50,14 @@ export function CommsPanel() {
   const [mobileTab, setMobileTab] = useState<Tab>("slack");
   const [focusMail, setFocusMail] = useState<FocusMailRequest | null>(null);
   const [mailCounts, setMailCounts] = useState<GmailInboxCounts | null>(null);
+  const [todoCount, setTodoCount] = useState(0);
   const focusNonce = useRef(0);
   const onEvents = useCallback((list: CalendarEvent[]) => setEvents(list), []);
   const onInboxCounts = useCallback(
     (counts: GmailInboxCounts | null) => setMailCounts(counts),
     [],
   );
+  const onTodoCount = useCallback((count: number) => setTodoCount(count), []);
 
   const openEmailFromTodo = useCallback(
     (ref: { messageId: string; threadId: string }) => {
@@ -399,12 +401,18 @@ export function CommsPanel() {
               }
             >
               <header className="pane-head">
-                <h2>To Do</h2>
+                <h2 className="pane-head-title">
+                  To Do
+                  <span className="pane-head-meta muted">
+                    {todoCount} open
+                  </span>
+                </h2>
                 <span className={status?.google ? "dot on" : "dot"} />
               </header>
               <TodoPane
                 connected={Boolean(status?.google)}
                 onOpenEmail={openEmailFromTodo}
+                onOpenCount={onTodoCount}
               />
             </section>
 

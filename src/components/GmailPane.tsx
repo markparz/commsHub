@@ -11,6 +11,7 @@ import {
 import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
 import type { GmailMessage, GmailMessageDetail } from "@/lib/types";
 import {
+  emailSrcDoc,
   extractEmail,
   forwardSubject,
   forwardedBody,
@@ -18,6 +19,7 @@ import {
   replyAllRecipients,
   replySubject,
 } from "@/lib/email";
+import { openMailWindow } from "@/lib/mail-window";
 import { usePersistedNumber } from "@/hooks/usePersistedNumber";
 import { ResizeHandle } from "./ResizeHandle";
 
@@ -42,11 +44,6 @@ function briefDescription(snippet: string, maxWords = MAX_DESC_WORDS): string {
   if (words.length === 0) return "No preview available.";
   if (words.length <= maxWords) return words.join(" ");
   return `${words.slice(0, maxWords).join(" ")}…`;
-}
-
-function emailSrcDoc(html: string): string {
-  if (/<html[\s>]/i.test(html)) return html;
-  return `<!DOCTYPE html><html><head><meta charset="utf-8" /><base target="_blank" /><style>body{margin:12px;font:14px/1.5 system-ui,sans-serif;color:#132019;word-wrap:break-word}img{max-width:100%;height:auto}a{color:#1f6f5b}</style></head><body>${html}</body></html>`;
 }
 
 type ComposeMode = "new" | "reply" | "reply-all" | "forward";
@@ -580,6 +577,7 @@ export function GmailPane({
                 <button
                   type="button"
                   className="mail-item"
+                  title="Click to preview · Double-click to open in a new window"
                   onClick={() => {
                     setSelected(m);
                     if (
@@ -589,6 +587,10 @@ export function GmailPane({
                     ) {
                       setComposeMode(null);
                     }
+                  }}
+                  onDoubleClick={(e) => {
+                    e.preventDefault();
+                    openMailWindow(m.id);
                   }}
                 >
                   <span className="mail-from">
