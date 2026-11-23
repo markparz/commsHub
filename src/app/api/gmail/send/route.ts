@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withEmailSignature } from "@/lib/email";
 import { sendGmailMessage } from "@/lib/google";
 import { isDemoMode } from "@/lib/session";
 
@@ -8,6 +9,7 @@ export async function POST(req: NextRequest) {
     if (!to || !subject || !body) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
+    const signedBody = withEmailSignature(String(body));
     if (isDemoMode()) {
       return NextResponse.json({
         ok: true,
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
         forwarded: Boolean(subject && /^fwd:/i.test(String(subject))),
       });
     }
-    await sendGmailMessage(to, subject, body, {
+    await sendGmailMessage(to, subject, signedBody, {
       threadId,
       inReplyTo,
       cc: cc || undefined,

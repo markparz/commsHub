@@ -91,3 +91,31 @@ export function forwardedBody(message: {
   lines.push("", message.snippet);
   return lines.join("\n");
 }
+
+/** Personal signature from EMAIL_SIGNATURE in .env.local (\n escapes allowed). */
+export function getEmailSignature(): string {
+  const raw = process.env.EMAIL_SIGNATURE || "";
+  return raw.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").trim();
+}
+
+/**
+ * Append the configured signature once, before quoted/forwarded content when present.
+ */
+export function withEmailSignature(body: string): string {
+  const signature = getEmailSignature();
+  if (!signature) return body;
+
+  const normalizedBody = body.replace(/\r\n/g, "\n");
+  if (normalizedBody.includes(signature)) return body;
+
+  const quoteMatch = normalizedBody.match(
+    /\n(?:---\nOn |---------- Forwarded message ---------)/,
+  );
+  if (quoteMatch && quoteMatch.index != null) {
+    const before = normalizedBody.slice(0, quoteMatch.index).trimEnd();
+    const after = normalizedBody.slice(quoteMatch.index);
+    return `${before}\n\n${signature}${after}`;
+  }
+
+  return `${normalizedBody.trimEnd()}\n\n${signature}`;
+}
