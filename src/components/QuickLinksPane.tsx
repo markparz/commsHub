@@ -230,6 +230,7 @@ export function QuickLinksPane() {
             <a
               className="quick-link"
               href={link.url}
+              title={link.url}
               target="_blank"
               rel="noreferrer"
             >
@@ -245,7 +246,6 @@ export function QuickLinksPane() {
                   {link.scope === "global" ? "Shared" : "Personal"}
                 </span>
               </span>
-              <span className="quick-link-url muted">{link.url}</span>
               {link.scope === "global" && link.addedBy ? (
                 <span className="quick-link-meta muted">
                   added by {link.addedBy}
