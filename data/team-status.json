@@ -1,6 +1,12 @@
 {
   "entries": [
     {
+      "id": "4ee55567-e27b-4c43-8297-43ac71587ab1",
+      "author": "@computer",
+      "text": "Daily status — Tuesday, November 24, 2026",
+      "createdAt": "2026-11-24T13:55:00.249Z"
+    },
+    {
       "id": "0348978d-7a9d-4b79-91e5-3d41e834f85a",
       "author": "Mark",
       "text": "added the following to the comms hub\n- number of \"to do\" next to the To do label in that pane\n- when you double click an email or to do it will open that email in a new pop up window\n- removed daily calendar and seismic update emails from to do list\n- changed quick link to only show the labels not the URL underneath to save space in the window pane",
